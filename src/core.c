@@ -500,6 +500,7 @@ static void udp_lwip_received(void *arg, struct udp_pcb *pcb, struct pbuf *p,
 
     if (fwd->nrcvq == arraysizeof(fwd->rcvq)) {
         /* receive queue full, drop oldest data in queue and enqueue this */
+        pbuf_free(fwd->rcvq[0]);
         memmove(fwd->rcvq, fwd->rcvq + 1,
                 (arraysizeof(fwd->rcvq) - 1) * sizeof(fwd->rcvq[0]));
         fwd->rcvq[arraysizeof(fwd->rcvq) - 1] = p;
