@@ -31,23 +31,23 @@ cmake --install build  # optional, required root privilege
 USAGE
 ----------
 
-nsproxy [-H] [-s <server>] [-p <port>] [-d <dns>] [-v|-q] <command>
+Usage:
+  nsproxy [OPTIONS...] <COMMAND> [ARGS...]
 
 Examples:
-  # Use socks5 proxy
+  # Use SOCKS5 proxy
   nsproxy curl http://example.com
 
-  # Use http proxy
+  # Use HTTP proxy
   nsproxy -H curl http://example.com
 
   # Specify a custom proxy server and port
   nsproxy -s 192.168.1.100 -p 8888 curl http://example.com
 
-
 Options:
   -H
-    Use http proxy, not socks5.
-    Note: UDP is **NOT** supported in http proxy. UDP packets will drop and got
+    Use HTTP proxy, not SOCKS5.
+    Note: UDP is **NOT** supported in HTTP proxy. UDP packets will drop and got
           an ICMP port unreachable message.
 
   -s <server>
@@ -56,12 +56,12 @@ Options:
 
   -p <port>
     Proxy server port.
-    Default value is "1080" for socks, "8080" for http
+    Default value is "1080" for SOCKS5, "8080" for HTTP
 
   -d <dns>
-    DNS redirect, allow following options:
+    DNS redirection, allow following options:
       -d off
-        Do nothings on DNS, treat as normal UDP packets.
+        Do nothing on DNS, treat as normal UDP packets.
       -d tcp://<server_ip>[:port]
         Redirect DNS requests to specified TCP nameserver.
       -d udp://<server_ip>[:port]
@@ -69,15 +69,18 @@ Options:
     IPv6 addresses must be enclosed in brackets (e.g. udp://[::1]:53).
     Default value is "tcp://1.1.1.1".
 
-  -6,
+  -a <user:pass>
+    Proxy authentication (SOCKS5 or HTTP Basic Auth).
+
+  -6
     Enable IPv6 support.
-    Default is disable
+    Default is disabled
 
   -v
     Verbose mode. Use "-vv" or "-vvv" for more verbose.
 
   -q
-    Be quiet.
+    Be quiet. Suppress output.
 
 
 LIMITATIONS

@@ -28,34 +28,32 @@ struct nspconf *nsproxy_current_nspconf__ = NULL;
 
 static void print_help(void)
 {
-    printf("usage: \n"
-           "  nsproxy [-h] [-H] [-s <server>] [-p <port>] [-d <dns>] [-a <user:password>] [-v|-q] "
-           "<command>\n"
-           "options:\n"
-           "  -h\n"
-           "    Print this help message and exit.\n"
+    printf("Usage: nsproxy [OPTIONS...] <COMMAND> [ARGS...]\n"
+           "Options:\n"
            "  -H\n"
-           "    Use http proxy, not socks5.\n"
+           "    Use HTTP proxy, not SOCKS5.\n"
            "  -s <server>\n"
            "    Proxy server address.\n"
            "  -p <port>\n"
            "    Proxy server port.\n"
            "  -d <dns>\n"
-           "    DNS redirect, allow following options:\n"
+           "    DNS redirection, allow following options:\n"
            "      -d off\n"
-           "        Do nothings on DNS, treat as normal UDP packets.\n"
+           "        Do nothing on DNS, treat as normal UDP packets.\n"
            "      -d tcp://<server_ip>[:port]\n"
            "        Redirect DNS requests to specified TCP nameserver.\n"
            "      -d udp://<server_ip>[:port]\n"
            "        Redirect DNS requests to specified UDP nameserver.\n"
-           "  -a <user:password>\n"
+           "  -a <user:pass>\n"
            "    Proxy authentication (SOCKS5 or HTTP Basic Auth).\n"
            "  -6\n"
            "    Enable IPv6 support.\n"
            "  -v\n"
            "    Verbose mode. Use \"-vv\" or \"-vvv\" for more verbose.\n"
            "  -q\n"
-           "    Be quiet.\n");
+           "    Be quiet. Suppress output.\n"
+           "  -h\n"
+           "    Print this help message and exit.\n");
 }
 
 static int write_string(const char *fname, const char *str)
