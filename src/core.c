@@ -279,35 +279,47 @@ static err_t udp_proxy_input(struct udp_forward *fwd)
 {
     struct proxy *proxy = fwd->proxy;
     struct udp_pcb *pcb = fwd->pcb;
+    char *buffer;
+    struct pbuf *p;
+    err_t ret = ERR_OK;
 
     /* reset gc ttl */
     fwd->gc = fwd->pcb->local_port == 53
         ? NSPROXY_DNS_IDLE_TIMEOUT
         : NSPROXY_UDP_IDLE_TIMEOUT;
 
-    for (;;) {
-        char buffer[65535];
-        ssize_t nread;
+    if ((buffer = malloc(UDP_PACKET_MAXLEN)) == NULL)
+        oom();
+    if ((p = pbuf_alloc_reference(buffer, UDP_PACKET_MAXLEN, PBUF_REF)) == NULL)
+        oom();
 
-        nread = proxy_recv(proxy, buffer, sizeof(buffer));
+    for (;;) {
+        ssize_t nread = proxy_recv(proxy, buffer, UDP_PACKET_MAXLEN);
         if (nread == -EAGAIN) {
             proxy_evctl(proxy, EPOLLIN, 1);
-            return ERR_OK;
+            goto end;
         } else if (nread < 0) {
-            loglv(3, "udp_proxy_input: proxy error, force destroy fwd "
+            loglv(3, "udp_proxy_input: proxy error, destroy fwd "
                      "reason: %s", strerror(-nread));
             udp_forward_destroy(fwd);
-            return ERR_ABRT;
+            ret = ERR_ABRT;
+            goto end;
         } else {
-            struct pbuf *p;
-            err_t err;
-            if ((p = pbuf_alloc_reference(buffer, nread, PBUF_REF)) == NULL)
-                oom();
-            err = udp_send(pcb, p);
-            pbuf_free(p);
-            return err;
+            pbuf_realloc(p, nread); /* set p->tot_len = nread */
+            if (udp_send(pcb, p) != ERR_OK) {
+                loglv(3, "udp_proxy_input: udp_send() failed, destroy fwd");
+                udp_forward_destroy(fwd);
+                ret = ERR_ABRT;
+                goto end;
+            }
+            /* continue */
         }
     }
+
+end:
+    pbuf_free(p);
+    free(buffer);
+    return ret;
 }
 
 /* try to send data to proxy server, data already in fwd->rcvq */

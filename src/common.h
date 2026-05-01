@@ -65,6 +65,9 @@ enum {
 /* rfc1929(socks5 auth): length of UNAME / PASSWD could be 1-255 */
 #define AUTH_MAXLEN 255
 
+/* rfc768(UDP) */
+#define UDP_PACKET_MAXLEN 65535
+
 struct nspconf {
     char proxysrv[SERVNAME_MAXLEN + 1];
     uint16_t proxyport;
