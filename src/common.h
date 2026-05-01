@@ -19,11 +19,6 @@
 
 #define arraysizeof(array) (sizeof(array) / sizeof(*(array)))
 
-#define is_ignored_skerr(err)                                          \
-    ((err) == ECONNRESET || (err) == ECONNREFUSED || (err) == EPIPE || \
-     (err) == ETIMEDOUT || (err) == EINPROGRESS || (err) == EAGAIN ||  \
-     (err) == ENOTCONN)
-
 #define loglv(lv, str, ...)                                        \
     do {                                                           \
         if (nsproxy_verbose_level__ >= lv)                         \
@@ -81,7 +76,6 @@ struct nspconf {
     char proxypass[AUTH_MAXLEN + 1];   /* Proxy password for authentication */
     uint8_t ipv6;
 };
-
 
 extern int nsproxy_verbose_level__;
 extern struct nspconf *nsproxy_current_nspconf__;
