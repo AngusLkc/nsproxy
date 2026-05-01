@@ -10,6 +10,7 @@
 #include "direct.h"
 #include "http.h"
 #include "loop.h"
+#include "skutils.h"
 #include "socks.h"
 
 struct proxy_tcpdns;
@@ -160,21 +161,9 @@ static int tcpdns_shutdown(struct proxy *proxy, int how, int rst)
 /* impl for struct proxy :: evctl */
 static int tcpdns_evctl(struct proxy *proxy, unsigned int event, int enable)
 {
-    struct proxy_tcpdns *master = container_of(proxy, struct proxy_tcpdns, ops);
-    int err = 0;
-    unsigned int new_events = enable ? (master->events | event)
-                                     : (master->events & ~event);
-
-    if (new_events != master->events) {
-        int op = (master->events == 0) ? EPOLL_CTL_ADD :
-                 (new_events == 0)     ? EPOLL_CTL_DEL :
-                                         EPOLL_CTL_MOD;
-        err = loop_epoll_ctl(master->loop, op, master->evfd, new_events,
-                             &master->evfdepcb);
-        master->events = new_events;
-    }
-
-    return err;
+    struct proxy_tcpdns *self = container_of(proxy, struct proxy_tcpdns, ops);
+    return skutils_evctl(self->loop, self->evfd, &self->events, &self->evfdepcb,
+                         event, enable);
 }
 
 /* impl for struct proxy :: send
