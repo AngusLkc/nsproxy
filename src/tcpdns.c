@@ -87,18 +87,16 @@ static void tcpdns_worker_handle_event(void *userp, unsigned int event,
                                        int status)
 {
     struct tcpdns_worker *worker = userp;
-    struct proxy *proxy = worker->proxy;
     ssize_t nread, nsent;
-    uint16_t rsz;
 
-    if (event & (EPOLLERR | EPOLLHUP)) {
+    if (event & EPOLLERR) {
         tcpdns_worker_destroy(worker);
         return;
     }
 
     if (event & EPOLLIN) {
-        nread = proxy_recv(proxy, worker->buffer + worker->nbuffer,
-                        sizeof(worker->buffer) - worker->nbuffer);
+        nread = proxy_recv(worker->proxy, worker->buffer + worker->nbuffer,
+                           sizeof(worker->buffer) - worker->nbuffer);
         if (nread > 0) {
             worker->nbuffer += nread;
         } else {
@@ -106,21 +104,29 @@ static void tcpdns_worker_handle_event(void *userp, unsigned int event,
             return;
         }
         if (worker->nbuffer > 2) {
+            uint16_t rsz;
+            uint64_t sema = 1;
+
             memcpy(&rsz, worker->buffer, sizeof(rsz));
             rsz = be16toh(rsz);
-            if (rsz + 2 == worker->nbuffer) {
-                const uint64_t val = 1;
-                proxy_put(proxy);
-                worker->proxy = NULL;
-                worker->done = 1;
-                write(worker->master->evfd, &val, sizeof(val));
-                return;
-            }
+
+            if (worker->nbuffer < rsz + 2)
+                return; /* not finish */
+
+            /* query succeed, destory worker connection */
+            proxy_put(worker->proxy);
+            worker->proxy = NULL;
+
+            /* mark we have done and notice master */
+            worker->done = 1;
+            if (write(worker->master->evfd, &sema, sizeof(sema)) == -1)
+                tcpdns_worker_destroy(worker);
         }
+        return;
     }
 
     if (event & EPOLLOUT) {
-        nsent = proxy_send(proxy, worker->buffer, worker->nbuffer);
+        nsent = proxy_send(worker->proxy, worker->buffer, worker->nbuffer);
         if (nsent > 0) {
             worker->nbuffer -= nsent;
             memmove(worker->buffer, worker->buffer + nsent, worker->nbuffer);
@@ -129,8 +135,8 @@ static void tcpdns_worker_handle_event(void *userp, unsigned int event,
             return;
         }
         if (worker->nbuffer == 0) {
-            proxy_evctl(proxy, EPOLLIN, 1);
-            proxy_evctl(proxy, EPOLLOUT, 0);
+            proxy_evctl(worker->proxy, EPOLLIN, 1);
+            proxy_evctl(worker->proxy, EPOLLOUT, 0);
         }
     }
 
