@@ -11,6 +11,8 @@
 #include "proxy.h"
 #include "skutils.h"
 
+#define HTTP_HS_BUFF 4096
+
 enum {
     PHASE_SEND_REQUEST = 1,
     PHASE_RECV_REPLY,
@@ -89,8 +91,7 @@ struct proxy_http {
 
     /* handshake */
     int phase;
-    char buffer[512];
-    ssize_t nbuffer;
+    struct buff *hsbuff;
 };
 
 static void http_handshake_perror(struct proxy_http *self, int err)
@@ -107,6 +108,7 @@ static void http_handshake_perror(struct proxy_http *self, int err)
    used of receiving http response */
 static void http_handshake_input(struct proxy_http *self)
 {
+    struct buff *buff = self->hsbuff;
     ssize_t nread;
     char *crlf2;
     ssize_t ndiscard;
@@ -115,10 +117,10 @@ static void http_handshake_input(struct proxy_http *self)
 
     /* Use MSG_PEEK here, if some application layer data has been returned,
        we can carefuly not to touch them
-       Treat self->buffer as string, nerver forget set a '\0' after recv()
+       Treat buff->data as string, nerver forget set a '\0' after recv()
     */
-    nread = recv(self->sfd, self->buffer + self->nbuffer,
-                 sizeof(self->buffer) - self->nbuffer - 1, MSG_PEEK);
+    nread = recv(self->sfd, buff->data + buff->size,
+                 buff->capacity - buff->size - 1, MSG_PEEK);
     if (nread <= 0) {
         if (nread == 0 || errno != EAGAIN) {
             http_handshake_perror(self, nread == -1 ? errno : 0);
@@ -126,28 +128,28 @@ static void http_handshake_input(struct proxy_http *self)
         }
         return;
     }
-    (self->buffer + self->nbuffer)[nread] = '\0';
+    (buff->data + buff->size)[nread] = '\0';
 
     /* serch from start every time, servers (who?) may trim \r\n\r\n */
-    crlf2 = strstr(self->buffer, "\r\n\r\n");
+    crlf2 = strstr(buff->data, "\r\n\r\n");
 
     /* number of bytes need to discard after recv(..., MSG_PEEK) */
     ndiscard = crlf2
-        ? (crlf2 + strlen("\r\n\r\n") - (self->buffer + self->nbuffer))
+        ? (crlf2 + strlen("\r\n\r\n") - (buff->data + buff->size))
         : nread;
 
     /* discard http response part in socket buffer */
-    nread = recv(self->sfd, self->buffer + self->nbuffer, ndiscard, 0);
+    nread = recv(self->sfd, buff->data + buff->size, ndiscard, 0);
     if (nread != ndiscard) {
         fprintf(stderr, "recv() returned %zd, expected %zd\n", nread, ndiscard);
         abort();
     }
-    self->nbuffer += ndiscard;
+    buff->size += ndiscard;
 
     /* handshake not finished */
     if (!crlf2) {
         /* failed, handshake not finished but buffer full */
-        if (self->nbuffer == sizeof(self->buffer) - 1) {
+        if (buff->size == buff->capacity - 1) {
             loglv(0, "Proxy server returned a header that is too large "
                      "during the handshake.");
             self->userev(self->userp, ~0u);
@@ -157,7 +159,7 @@ static void http_handshake_input(struct proxy_http *self)
     }
 
     /* check response */
-    if (sscanf(self->buffer, "HTTP/1.%c %d", &vermin, &code) != 2) {
+    if (sscanf(buff->data, "HTTP/1.%c %d", &vermin, &code) != 2) {
         loglv(0, "Proxy server returned invalid HTTP response header during "
                  "handshake");
         self->userev(self->userp, ~0u);
@@ -181,16 +183,19 @@ static void http_handshake_input(struct proxy_http *self)
     self->events = EPOLLOUT | EPOLLIN;
     loop_epoll_ctl(self->loop, EPOLL_CTL_MOD, self->sfd, self->events,
                    &self->epcb);
+    free(self->hsbuff);
+    self->hsbuff = NULL;
 }
 
 /* epoll event callback
    used of sending http request */
 static void http_handshake_output(struct proxy_http *self)
 {
+    struct buff *buff = self->hsbuff;
     ssize_t nsent;
 
     /* it's first called to this function, assembly request */
-    if (!self->nbuffer) {
+    if (!buff->size) {
         const char *lb, *rb;
 
         if (strchr(self->addr, ':') != NULL) {
@@ -210,7 +215,7 @@ static void http_handshake_output(struct proxy_http *self)
             base64_encode(base64, sizeof(base64), credentials, 
                           strlen(credentials));
 
-            self->nbuffer = snprintf(self->buffer, sizeof(self->buffer),
+            buff->size = snprintf(buff->data, buff->capacity,
                 "CONNECT %s%s%s:%u HTTP/1.1"       "\r\n"
                 "Host: %s%s%s:%u"                  "\r\n"
                 "Proxy-Authorization: Basic %s"    "\r\n"
@@ -219,7 +224,7 @@ static void http_handshake_output(struct proxy_http *self)
                 lb, self->addr, rb, (unsigned)self->port,
                 base64);
         } else {
-            self->nbuffer = snprintf(self->buffer, sizeof(self->buffer),
+            buff->size = snprintf(buff->data, buff->capacity,
                 "CONNECT %s%s%s:%u HTTP/1.1"    "\r\n"
                 "Host: %s%s%s:%u"               "\r\n"
                 "\r\n",
@@ -228,7 +233,7 @@ static void http_handshake_output(struct proxy_http *self)
         }
     }
 
-    nsent = send(self->sfd, self->buffer,self->nbuffer, MSG_NOSIGNAL);
+    nsent = send(self->sfd, buff->data,buff->size, MSG_NOSIGNAL);
     if (nsent == -1) {
         if (errno != EAGAIN) {
             http_handshake_perror(self, errno);
@@ -236,11 +241,11 @@ static void http_handshake_output(struct proxy_http *self)
         }
         return;
     }
-    self->nbuffer -= nsent;
+    buff->size -= nsent;
 
-    if (self->nbuffer != 0) {
+    if (buff->size != 0) {
         /* partial write, wait next time to write rest */
-        memmove(self->buffer, self->buffer + nsent, self->nbuffer);
+        memmove(buff->data, buff->data + nsent, buff->size);
         return;
     }
 
@@ -321,6 +326,7 @@ static void http_put(struct proxy *proxy)
     if (--self->refcnt == 0) {
         skutils_close_unreg(&self->info, self->loop, &self->sfd);
         free(self->addr);
+        free(self->hsbuff);
         free(self);
     }
 }
@@ -347,6 +353,8 @@ struct proxy *http_tcp_create(struct loopctx *loop, userev_fn_t *userev,
 
     if ((self = calloc(1, sizeof(struct proxy_http))) == NULL)
         oom();
+    if ((self->hsbuff = buff_calloc(HTTP_HS_BUFF)) == NULL)
+        oom();
 
     /* init */
     self->ops.ops = &http_ops;
@@ -369,6 +377,7 @@ struct proxy *http_tcp_create(struct loopctx *loop, userev_fn_t *userev,
     self->sfd = skutils_connect(&self->info, conf->proxysrv, conf->proxyport,
                                 SOCK_STREAM);
     if (self->sfd < 0) {
+        free(self->hsbuff);
         free(self);
         return NULL;
     }

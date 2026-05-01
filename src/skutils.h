@@ -3,6 +3,19 @@
 #include <sys/socket.h>
 #include "loop.h"
 
+struct buff {
+    size_t capacity;
+    size_t size;
+    char data[];
+};
+
+#define buff_calloc(n) __extension__ ({                         \
+    size_t n__ = (n);                                           \
+    struct buff *buff__ = calloc(1, sizeof(struct buff) + n__); \
+    if (buff__ != NULL) buff__->capacity = n__;                 \
+    buff__;                                                     \
+})
+
 struct skinfo {
     char desc[64];
     size_t nsent;

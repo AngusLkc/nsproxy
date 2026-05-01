@@ -12,6 +12,8 @@
 #include "loop.h"
 #include "skutils.h"
 
+#define SOCKS_HS_BUFF 1024
+
 /* socks handshake phases */
 enum {
     PHASE_SEND_METHOD = 1,
@@ -87,8 +89,7 @@ struct proxy_socks {
     /* handshake */
     int type; /* TCP_FORWARD / UDP_FORWARD / UDP_ASSOCIATE */
     int phase;
-    char buffer[4096];
-    size_t nbuffer;
+    struct buff *hsbuff;
 
     /* for udp forward only */
     struct reladdr *relay;
@@ -272,44 +273,37 @@ static void socks_handshake_output(struct proxy_socks *self)
 {
     struct nspconf *conf = current_nspconf();
     ssize_t nsent;
+    struct buff *buff = self->hsbuff;
 
     /* it's first called to this phase, assembly buffer */
-    if (self->nbuffer == 0) {
+    if (buff->size == 0) {
         if (self->phase == PHASE_SEND_METHOD) {
-            static_assert(sizeof(self->buffer) >= 4, "???");
-
-            self->buffer[self->nbuffer++] = 5; /* ver */
+            buff->data[buff->size++] = 5; /* ver */
             if (conf->proxyuser[0] != '\0') {
-                self->buffer[self->nbuffer++] = 2; /* num methods */
-                self->buffer[self->nbuffer++] = 0; /* no auth */
-                self->buffer[self->nbuffer++] = 2; /* user/pass auth */
+                buff->data[buff->size++] = 2; /* num methods */
+                buff->data[buff->size++] = 0; /* no auth */
+                buff->data[buff->size++] = 2; /* user/pass auth */
             } else {
-                self->buffer[self->nbuffer++] = 1; /* num methods */
-                self->buffer[self->nbuffer++] = 0; /* no auth */
+                buff->data[buff->size++] = 1; /* num methods */
+                buff->data[buff->size++] = 0; /* no auth */
             }
         }
         if (self->phase == PHASE_SEND_AUTH) {
             size_t ulen = strlen(conf->proxyuser);
             size_t plen = strlen(conf->proxypass);
 
-            static_assert(sizeof(self->buffer) >= sizeof(conf->proxyuser)
-                              + sizeof(conf->proxypass) + 2, "????");
-
-            self->buffer[self->nbuffer++] = 1; /* ver */
-            self->buffer[self->nbuffer++] = (uint8_t)ulen;
-            memcpy(self->buffer + self->nbuffer, conf->proxyuser, ulen);
-            self->nbuffer += ulen;
-            self->buffer[self->nbuffer++] = (uint8_t)plen;
-            memcpy(self->buffer + self->nbuffer, conf->proxypass, plen);
-            self->nbuffer += plen;
+            buff->data[buff->size++] = 1; /* ver */
+            buff->data[buff->size++] = (uint8_t)ulen;
+            memcpy(buff->data + buff->size, conf->proxyuser, ulen);
+            buff->size += ulen;
+            buff->data[buff->size++] = (uint8_t)plen;
+            memcpy(buff->data + buff->size, conf->proxypass, plen);
+            buff->size += plen;
         }
         if (self->phase == PHASE_SEND_REQUEST) {
             struct socks5hdr hdr;
             struct socks5addr ad;
             ssize_t ret;
-
-            static_assert(sizeof(self->buffer) >= sizeof(hdr) + sizeof(ad.addr)
-                              + 3, "???");
 
             hdr.ver = 0x5;
             hdr.cmd = self->type == TCP_FORWARD ? SOCKS5_CMD_CONNECT
@@ -319,25 +313,25 @@ static void socks_handshake_output(struct proxy_socks *self)
             snprintf(ad.addr, sizeof(ad.addr), "%s", self->addr);
             ad.port = self->port;
 
-            ret = socks5_hdr_put(self->buffer + self->nbuffer,
-                                 sizeof(self->buffer) - self->nbuffer, &hdr);
+            ret = socks5_hdr_put(buff->data + buff->size,
+                                 buff->capacity - buff->size, &hdr);
             if (ret == -1) {
                 fprintf(stderr, "an invariant violation has been detected.\n");
                 abort();
             }
-            self->nbuffer += ret;
+            buff->size += ret;
 
-            ret = socks5_addr_put(self->buffer + self->nbuffer,
-                                  sizeof(self->buffer) - self->nbuffer, &ad);
+            ret = socks5_addr_put(buff->data + buff->size,
+                                  buff->capacity - buff->size, &ad);
             if (ret == -1) {
                 fprintf(stderr, "an invariant violation has been detected.\n");
                 abort();
             }
-            self->nbuffer += ret;
+            buff->size += ret;
         }
     }
 
-    nsent = send(self->sfd, self->buffer, self->nbuffer, MSG_NOSIGNAL);
+    nsent = send(self->sfd, buff->data, buff->size, MSG_NOSIGNAL);
     if (nsent == -1) {
         if (errno != EAGAIN) {
             socks_handshake_perror(self, errno);
@@ -345,11 +339,11 @@ static void socks_handshake_output(struct proxy_socks *self)
         }
         return;
     }
-    self->nbuffer -= nsent;
+    buff->size -= nsent;
 
-    if (self->nbuffer != 0) {
+    if (buff->size != 0) {
         /* partial write, wait next time to write rest */
-        memmove(self->buffer, self->buffer + nsent, self->nbuffer);
+        memmove(buff->data, buff->data + nsent, buff->size);
         return;
     }
 
@@ -365,10 +359,11 @@ static void socks_handshake_output(struct proxy_socks *self)
 static void socks_handshake_input(struct proxy_socks *self)
 {
     ssize_t nread;
+    struct buff *buff = self->hsbuff;
 
     if (self->phase == PHASE_RECV_METHOD) {
-        nread = recv(self->sfd, self->buffer + self->nbuffer,
-                     sizeof(self->buffer) - self->nbuffer, 0);
+        nread = recv(self->sfd, buff->data + buff->size,
+                     buff->capacity - buff->size, 0);
         if (nread <= 0) {
             if (nread == 0 || errno != EAGAIN) {
                 socks_handshake_perror(self, nread == -1 ? errno : 0);
@@ -376,22 +371,22 @@ static void socks_handshake_input(struct proxy_socks *self)
             }
             return;
         }
-        self->nbuffer += nread;
+        buff->size += nread;
 
         /* wait more data */
-        if (self->nbuffer < 2)
+        if (buff->size < 2)
             return;
 
         /* no a correct protocol header */
-        if (self->buffer[0] != 5) {
+        if (buff->data[0] != 5) {
             loglv(0, "Proxy server retern a bad reply: VER field is 0x%02x, "
-                     "expected 0x05", (unsigned char)self->buffer[0]);
+                     "expected 0x05", (unsigned char)buff->data[0]);
             self->userev(self->userp, ~0u);
             return;
         }
 
         /* server reject our all method */
-        if ((unsigned char)self->buffer[1] == 0xFF) {
+        if ((unsigned char)buff->data[1] == 0xFF) {
             loglv(0, "Proxy server requires authentication. "
                      "Please check your username and password.");
             self->userev(self->userp, ~0u);
@@ -399,31 +394,31 @@ static void socks_handshake_input(struct proxy_socks *self)
         } /* - else: server selected a method */
 
         /* should be only one method */
-        if (self->nbuffer != 2) {
+        if (buff->size != 2) {
             loglv(0, "Proxy server returned invalid method response");
             self->userev(self->userp, ~0u);
             return;
         }
 
         /* see what method server selected */
-        if (self->buffer[1] == 2) {
+        if (buff->data[1] == 2) {
             /* username password auth */
             self->phase = PHASE_SEND_AUTH;
-        } else if (self->buffer[1] == 0) {
+        } else if (buff->data[1] == 0) {
             /* no auth */
             self->phase = PHASE_SEND_REQUEST;
         } else {
             /* other */
             loglv(0, "Proxy server returned unsupported authentication "
-                     "method: 0x%02x", (unsigned char)self->buffer[1]);
+                     "method: 0x%02x", (unsigned char)buff->data[1]);
             self->userev(self->userp, ~0u);
             return;
         }
     }
 
     if (self->phase == PHASE_RECV_AUTH) {
-        nread = recv(self->sfd, self->buffer + self->nbuffer,
-                     sizeof(self->buffer) - self->nbuffer, 0);
+        nread = recv(self->sfd, buff->data + buff->size,
+                     buff->capacity - buff->size, 0);
         if (nread <= 0) {
             if (nread == 0 || errno != EAGAIN) {
                 socks_handshake_perror(self, nread == -1 ? errno : 0);
@@ -431,20 +426,20 @@ static void socks_handshake_input(struct proxy_socks *self)
             }
             return;
         }
-        self->nbuffer += nread;
+        buff->size += nread;
 
         /* hanshake failed because server didn't follow RFC1929 */
-        if (self->nbuffer > 2) {
+        if (buff->size > 2) {
             loglv(0, "Proxy server returned invalid auth response");
             self->userev(self->userp, ~0u);
             return;
         }
 
         /* wait more data */
-        if (self->nbuffer != 2)
+        if (buff->size != 2)
             return;
 
-        if (self->buffer[0] != 1 || self->buffer[1] != 0) {
+        if (buff->data[0] != 1 || buff->data[1] != 0) {
             loglv(0, "SOCKS5 authentication failed. "
                      "Please check your username and password.");
             self->userev(self->userp, ~0u);
@@ -464,8 +459,8 @@ static void socks_handshake_input(struct proxy_socks *self)
 
         /* use MSG_PEEK here, if some application layer data has been returned,
            we can carefuly not to touch them */
-        nread = recv(self->sfd, self->buffer + self->nbuffer,
-                     sizeof(self->buffer) - self->nbuffer - 1, MSG_PEEK);
+        nread = recv(self->sfd, buff->data + buff->size,
+                     buff->capacity - buff->size - 1, MSG_PEEK);
         if (nread <= 0) {
             if (nread == 0 || errno != EAGAIN) {
                 socks_handshake_perror(self, nread == -1 ? errno : 0);
@@ -482,35 +477,35 @@ static void socks_handshake_input(struct proxy_socks *self)
             s = nread;
             pass = 0;
 
-            ret = socks5_hdr_get(&hdr, self->buffer + offset,
-                                self->nbuffer + nread - offset);
+            ret = socks5_hdr_get(&hdr, buff->data + offset,
+                                buff->size + nread - offset);
             if (ret == -1)
                 break;
             offset += ret;
 
-            ret = socks5_addr_get(&ad, self->buffer + offset,
-                                self->nbuffer + nread - offset);
+            ret = socks5_addr_get(&ad, buff->data + offset,
+                                buff->size + nread - offset);
             if (ret == -1)
                 break;
             offset += ret;
 
-            s = offset - self->nbuffer;
+            s = offset - buff->size;
             pass = 1;
         } while (0);
 
         /* discard socks handshake reply part in socket buffer */
-        nread = recv(self->sfd, self->buffer + self->nbuffer, s, 0);
+        nread = recv(self->sfd, buff->data + buff->size, s, 0);
         if (nread != s) {
             fprintf(stderr, "recv() returned %zd, expected %zd\n", nread, s);
             abort();
         }
-        self->nbuffer += nread;
+        buff->size += nread;
 
         /* handshake not finished */
         if (!pass) {
             /* failed, handshake not finished but connection lost or buffer
                full */
-            if (self->nbuffer == sizeof(self->buffer)) {
+            if (buff->size == buff->capacity) {
                 loglv(0, "Proxy server returned a header that is too large "
                          "during the handshake.");
                 self->userev(self->userp, ~0u);
@@ -555,7 +550,7 @@ static void socks_handshake_input(struct proxy_socks *self)
     }
 
     /* clear input buffer */
-    self->nbuffer = 0;
+    buff->size = 0;
 
     /* when control flow reach here, it should finish a step of input phase */
     if (self->phase == PHASE_SEND_REQUEST || self->phase == PHASE_SEND_AUTH) {
@@ -566,6 +561,8 @@ static void socks_handshake_input(struct proxy_socks *self)
         self->events = EPOLLOUT | EPOLLIN;
         loop_epoll_ctl(self->loop, EPOLL_CTL_MOD, self->sfd, self->events,
                        &self->epcb);
+        free(self->hsbuff);
+        self->hsbuff = NULL;
     }
 }
 
@@ -712,6 +709,7 @@ static void socks_put(struct proxy *proxy)
         skutils_close_unreg(&self->info, self->loop, &self->sfd);
         free(self->relay);
         free(self->addr);
+        free(self->hsbuff);
         free(self);
     }
 }
@@ -740,6 +738,8 @@ socks_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
 
     if ((self = calloc(1, sizeof(struct proxy_socks))) == NULL)
         oom();
+    if ((self->hsbuff = buff_calloc(SOCKS_HS_BUFF)) == NULL)
+        oom();
 
     /* init */
     self->ops.ops = &socks_ops;
@@ -766,6 +766,7 @@ socks_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
         self->sfd = skutils_connect(&self->info, conf->proxysrv,
                                     conf->proxyport, socktype);
         if (self->sfd < 0) {
+            free(self->hsbuff);
             free(self);
             return NULL;
         }
@@ -812,6 +813,7 @@ struct proxy *socks_udp_create(struct loopctx *loop, userev_fn_t *userev,
                                 as->relay->port, SOCK_DGRAM);
     if (self->sfd < 0) {
         free(self->addr);
+        free(self->hsbuff);
         free(self);
         return NULL;
     }
@@ -820,6 +822,8 @@ struct proxy *socks_udp_create(struct loopctx *loop, userev_fn_t *userev,
     self->events = EPOLLOUT | EPOLLIN;
     loop_epoll_ctl(self->loop, EPOLL_CTL_ADD, self->sfd, self->events,
                    &self->epcb);
+    free(self->hsbuff);
+    self->hsbuff = NULL;
 
     return &self->ops;
 }
