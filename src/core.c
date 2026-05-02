@@ -88,7 +88,7 @@ static void tun_input(struct netif *tunif)
         oom();
 
     if ((nread = read(core->tunfd, p->payload, p->len)) == -1) {
-        loglv(3, "tun_input: read tunfd failed: %s", strerror(errno));
+        logwarn("tun_input: read tunfd failed: %s", strerror(errno));
         pbuf_free(p);
         return;
     }
@@ -96,7 +96,7 @@ static void tun_input(struct netif *tunif)
     /* shrink, set p->tot_len = nread */
     pbuf_realloc(p, nread);
 
-    loglv(3, "tun_input: read %zd bytes from TUN", nread);
+    loginfo("tun_input: read %zd bytes from TUN", nread);
 
     if (tunif->input(p, tunif) != ERR_OK) {
         LWIP_DEBUGF(NETIF_DEBUG, ("tun_input: netif input error\n"));
@@ -128,7 +128,7 @@ static err_t tun_output(struct netif *tunif, struct pbuf *p)
             p = p->next;
     }
     if ((nwrite = writev(core->tunfd, iov, n)) == -1) {
-        loglv(3, "tun_input: writev tunfd failed: %s", strerror(errno));
+        logwarn("tun_input: writev tunfd failed: %s", strerror(errno));
         return ERR_IF;
     }
     if (nwrite != orig->tot_len) {
@@ -136,7 +136,7 @@ static err_t tun_output(struct netif *tunif, struct pbuf *p)
         return ERR_IF;
     }
 
-    loglv(3, "tun_output: wrote %zd bytes to TUN", nwrite);
+    loginfo("tun_output: wrote %zd bytes to TUN", nwrite);
 
     return ERR_OK;
 }
@@ -301,15 +301,15 @@ static err_t udp_proxy_input(struct udp_forward *fwd)
             proxy_evctl(proxy, EPOLLIN, 1);
             goto end;
         } else if (nread < 0) {
-            loglv(3, "udp_proxy_input: proxy error, destroy fwd "
-                     "reason: %s", strerror(-nread));
+            logwarn("udp_proxy_input: proxy error, destroy fwd, reason: %s",
+                    strerror(-nread));
             udp_forward_destroy(fwd);
             ret = ERR_ABRT;
             goto end;
         } else {
             pbuf_realloc(p, nread); /* set p->tot_len = nread */
             if (udp_send(pcb, p) != ERR_OK) {
-                loglv(3, "udp_proxy_input: udp_send() failed, destroy fwd");
+                logwarn("udp_proxy_input: udp_send() failed, destroy fwd");
                 udp_forward_destroy(fwd);
                 ret = ERR_ABRT;
                 goto end;
@@ -350,8 +350,8 @@ static err_t udp_proxy_output(struct udp_forward *fwd)
         if (nsent == -EAGAIN) {
             break;
         } else if (nsent < 0) {
-            loglv(3, "udp_proxy_output: proxy error, force destroy fwd, "
-                     "reason: %s", strerror(-nsent));
+            logwarn("udp_proxy_output: proxy error, force destroy fwd, "
+                    "reason: %s", strerror(-nsent));
             udp_forward_destroy(fwd);
             return ERR_ABRT;
         } else {
@@ -403,11 +403,11 @@ static err_t tcp_proxy_input(struct tcp_forward *fwd)
             pbuf_free(p);
             return ERR_OK;
         } else if (nread < 0) {
-            loglv(3, "tcp_proxy_input: proxy error, force destroy fwd "
-                     "reason: %s", strerror(-nread));
+            logwarn("tcp_proxy_input: proxy error, force destroy fwd "
+                    "reason: %s", strerror(-nread));
             goto err_free_pbuf;
         } else if (nread == 0) {
-            loglv(3, "tcp_proxy_input: received EOF from proxy");
+            loginfo("tcp_proxy_input: received EOF from proxy");
             fwd->proxyeof = 1;
             pbuf_free(p);
             break;
@@ -417,7 +417,7 @@ static err_t tcp_proxy_input(struct tcp_forward *fwd)
 
             /* send to application and enqueue to fwd->sndq */
             if (tcp_write(pcb, p->payload, nread, 0) != ERR_OK) {
-                loglv(3, "tcp_proxy_input: tcp_write() failed");
+                logwarn("tcp_proxy_input: tcp_write() failed");
                 goto err_free_pbuf;
             }
             /* p is moved into fwd->sndq, don't free */
@@ -427,7 +427,7 @@ static err_t tcp_proxy_input(struct tcp_forward *fwd)
                 pbuf_cat(fwd->sndq, p);
 
             if (tcp_output(pcb) != ERR_OK) { /* don't delay */
-                loglv(3, "tcp_proxy_input: tcp_output() failed");
+                logwarn("tcp_proxy_input: tcp_output() failed");
                 goto err_abort;
             };
         } 
@@ -439,10 +439,10 @@ static err_t tcp_proxy_input(struct tcp_forward *fwd)
     /* received EOF from proxy, and all datas has been sent to lwip,
        forward this EOF to lwip now */
     if (fwd->proxyeof && !fwd->sndq) {
-        loglv(3, "tcp_lwip_sent: sndq drained, half-closing lwip");
+        loginfo("tcp_lwip_sent: sndq drained, half-closing lwip");
         tcp_shutdown(pcb, 0, 1);
         if (fwd->lwipeof && !fwd->rcvq) {
-            loglv(3, "tcp_lwip_sent: full-closing");
+            loginfo("tcp_lwip_sent: full-closing");
             tcp_forward_destroy(fwd, 0);
         }
     }
@@ -479,8 +479,8 @@ static err_t tcp_proxy_output(struct tcp_forward *fwd)
             proxy_evctl(proxy, EPOLLOUT, 1);
             return ERR_OK;
         } else if (nsent < 0) {
-            loglv(3, "tcp_proxy_output: proxy error, force destroy fwd, "
-                     "reason: %s", strerror(-nsent));
+            logwarn("tcp_proxy_output: proxy error, force destroy fwd, "
+                    "reason: %s", strerror(-nsent));
             tcp_forward_destroy(fwd, 1);
             return ERR_ABRT;
         } else {
@@ -495,11 +495,11 @@ static err_t tcp_proxy_output(struct tcp_forward *fwd)
     /* received EOF from lwip, and all datas has been sent to proxy,
        forward this EOF to proxy now */
     if (fwd->lwipeof) {
-        loglv(3, "tcp_proxy_output: rcvq drained, half-closing proxy");
+        loginfo("tcp_proxy_output: rcvq drained, half-closing proxy");
         proxy_shutdown(proxy, SHUT_WR, 0);
         /* full close */
         if (fwd->proxyeof && !fwd->sndq) {
-            loglv(3, "tcp_proxy_output: full-closing"); 
+            loginfo("tcp_proxy_output: full-closing"); 
             tcp_forward_destroy(fwd, 0);
         }
     }
@@ -571,7 +571,7 @@ static err_t tcp_lwip_received(void *arg, struct tcp_pcb *pcb, struct pbuf *p,
         else
             fwd->rcvq = p;
     } else {
-        loglv(3, "tcp_lwip_received: received EOF from lwip");
+        loginfo("tcp_lwip_received: received EOF from lwip");
         fwd->lwipeof = 1;
     }
 
@@ -590,7 +590,7 @@ static void tcp_lwip_err(void *arg, err_t err)
 {
     struct tcp_forward *fwd = arg;
     if (fwd) {
-        loglv(3, "tcp_lwip_err: lwip error, force destroy fwd");
+        logwarn("tcp_lwip_err: lwip error, force destroy fwd");
         fwd->pcb = NULL;
         tcp_forward_destroy(fwd, 1);
     }
@@ -822,8 +822,8 @@ static void core_timerfd_epcb_events(struct epcb_ops *epcb, unsigned int events)
     uint64_t expired;
 
     if (read(core->timerfd, &expired, sizeof(expired)) == -1) {
-        loglv(3, "core_timerfd_epcb_events: read timerfd failed: %s",
-                 strerror(-errno));
+        logwarn("core_timerfd_epcb_events: read timerfd failed: %s",
+                strerror(-errno));
         return;
     }
     while (expired--) {
@@ -890,7 +890,7 @@ int core_init(struct corectx **core, struct loopctx *loop, int tunfd)
         netif_ip6_addr_set_state(&p->tunif, 0, IP6_ADDR_PREFERRED);
     }
 
-    loglv(3, "core_init: corectx and lwip initialized");
+    loginfo("core_init: corectx and lwip initialized");
 
     if (current_nspconf()->proxytype == PROXY_SOCKS5) {
         p->udpassoc = socks_assoc_create(loop, &udp_assoc_io_event, p);

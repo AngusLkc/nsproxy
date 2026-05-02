@@ -56,7 +56,7 @@ static int sigfd_handler(struct loopctx *loop)
         loglv(1, "All child exited, cleaning ...");
         return exitcode;
     } else {
-        loglv(3, "waitpid() failed: %s", strerror(errno));
+        logwarn("waitpid() failed: %s", strerror(errno));
         return -1;
     }
 }
@@ -82,7 +82,7 @@ int loop_init(struct loopctx **loop, int sigfd)
         goto err_close_epfd;
     }
 
-    loglv(3, "loop_init: lwIP and event loop initialized");
+    loginfo("loop_init: lwIP and event loop initialized");
 
     *loop = p;
     return 0;
@@ -138,9 +138,9 @@ int loop_epoll_ctl(struct loopctx *loop, int op, int fd, unsigned events,
     if (epoll_ctl(loop->epfd, op, fd, &ev) == -1) {
         int ret = -errno;
         if (errno == EEXIST) {
-            loglv(3, "loop_epoll_ctl: fd %d is registered already", fd);
+            logwarn("loop_epoll_ctl: fd %d is registered already", fd);
         } else if (errno == ENOENT) {
-            loglv(3, "loop_epoll_ctl: fd %d is not registered", fd);
+            logwarn("loop_epoll_ctl: fd %d is not registered", fd);
         } else {
             fprintf(stderr, "epoll_ctl(%d) failed: %s\n", op, strerror(errno));
             abort();

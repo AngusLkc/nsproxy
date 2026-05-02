@@ -578,9 +578,9 @@ static void socks_epcb_events(struct epcb_ops *epcb, unsigned int events)
         return;
     }
 
-    loglv(3, "socks_epcb_events: handshaking with %s:%u/%s [%s]",
-             self->addr, (unsigned)self->port,
-             self->type == TCP_FORWARD ? "tcp" : "udp", phasestr[self->phase]);
+    loginfo("socks_epcb_events: handshaking with %s:%u/%s [%s]",
+            self->addr, (unsigned)self->port,
+            self->type == TCP_FORWARD ? "tcp" : "udp", phasestr[self->phase]);
 
     if (self->phase == PHASE_SEND_METHOD || self->phase == PHASE_SEND_AUTH ||
         self->phase == PHASE_SEND_REQUEST) {
@@ -737,8 +737,8 @@ socks_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
     uint16_t proxy_port;
     int socktype = (type == UDP_FORWARD) ? SOCK_DGRAM : SOCK_STREAM;
 
-    loglv(3, "socks_create_impl: creating new struct proxy_socks for %s:%u/%s",
-             addr, (unsigned)port, (type == UDP_FORWARD) ? "udp" : "tcp");
+    loginfo("socks_create_impl: creating new struct proxy_socks for %s:%u/%s",
+            addr, (unsigned)port, (type == UDP_FORWARD) ? "udp" : "tcp");
 
     if (strlen(addr) > SERVNAME_MAXLEN)
         return NULL;

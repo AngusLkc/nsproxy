@@ -25,6 +25,9 @@
             fprintf(stderr, "[nsproxy] " str "\n", ##__VA_ARGS__); \
     } while (0)
 
+#define loginfo(str, ...) loglv(3, str, ##__VA_ARGS__)
+#define logwarn(str, ...) loglv(3, "[WARN] " str, ##__VA_ARGS__)
+
 /* Memory footprint of nsproxy is small, allocation failure are not expected
    and implies entire program is totally broken.
    Attempting to recover from such state is pointless.

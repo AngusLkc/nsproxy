@@ -234,7 +234,7 @@ static int bringup_tun(void)
         exit(EXIT_FAILURE);
     }
 
-    loglv(3, "child: brought up tun device and configured IPv4");
+    loginfo("child: brought up tun device and configured IPv4");
 
     close(sk);
     return tunfd;
@@ -280,7 +280,7 @@ static void setup_ipv6(void)
         exit(EXIT_FAILURE);
     }
 
-    loglv(3, "child: configured IPv6");
+    loginfo("child: configured IPv6");
     close(sk);
 }
 
@@ -317,7 +317,7 @@ static void configure_resolv_conf(void)
     if (mount(path, "/etc/resolv.conf", NULL, MS_BIND | MS_RDONLY, NULL) == -1)
         goto failed_after_create;
 
-    loglv(3, "child: re-bound /etc/resolv.conf");
+    loginfo("child: re-bound /etc/resolv.conf");
 
     close(fd);
     unlink(path);
@@ -350,7 +350,7 @@ static void configure_nsswitch_conf(void)
         -1)
         goto failed_after_create;
 
-    loglv(3, "child: re-bound /etc/nsswitch.conf");
+    loginfo("child: re-bound /etc/nsswitch.conf");
 
     close(fd);
     unlink(path);
@@ -480,7 +480,7 @@ static int parent(int sk)
         exit(EXIT_FAILURE);
     }
 
-    loglv(3, "parent: starting event loop");
+    loginfo("parent: starting event loop");
     rc = loop_run(loop);
 
     core_deinit(core);
@@ -529,18 +529,18 @@ static int child(int sk, char *cmd[])
             exit(EXIT_FAILURE);
         }
 
-        loglv(3, "child: created user and net namespace");
+        loginfo("child: created user and net namespace");
 
         set_setgroups("deny");
 
         map_uid(uid, uid);
         map_gid(gid, gid);
     } else {
-        loglv(3, "child: created net namespace");
+        loginfo("child: created net namespace");
     }
 
     if (unshare_mount() == 0) {
-        loglv(3, "child: created mount namespace");
+        loginfo("child: created mount namespace");
 
         /* WORKAROUND: Bad owner or permissions on /etc/ssh/ssh_config.d */
         mount("tmpfs", "/etc/ssh/ssh_config.d", "tmpfs", 0, NULL);
@@ -570,7 +570,7 @@ static int child(int sk, char *cmd[])
 
     close(sk);
 
-    loglv(3, "child: execvp(\"%s\", ...)", cmd[0]);
+    loginfo("child: execvp(\"%s\", ...)", cmd[0]);
 
     if (execvp(cmd[0], cmd) == -1) {
         if (errno == ENOENT) {
@@ -806,11 +806,11 @@ int main(int argc, char *argv[])
     }
 
     if (cid) {
-        loglv(3, "parent: forked child process (pid=%d)", cid);
+        loginfo("parent: forked child process (pid=%d)", cid);
         close(skpair[1]);
         return parent(skpair[0]);
     } else {
-        loglv(3, "child: process started");
+        loginfo("child: process started");
         close(skpair[0]);
         return child(skpair[1], argv + optind);
     }

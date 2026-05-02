@@ -138,10 +138,11 @@ void skutils_close_unreg(struct skinfo *info, struct loopctx *loop, int *sfd)
 
     if ((err = loop_epoll_ctl(loop, EPOLL_CTL_DEL, *sfd, 0, NULL)) < 0)
         if (err != -ENOENT)
-            loglv(0, "skutils_close_unreg: remove fd from epoll failed");
+            logwarn("skutils_close_unreg: remove fd from epoll failed: %s",
+                    strerror(-err));
 
     if (close(*sfd) == -1)
-        loglv(0, "skutils_close_unreg: close fd failed: %s", strerror(errno));
+        logwarn("skutils_close_unreg: close fd failed: %s", strerror(errno));
 
     *sfd = -1;
 

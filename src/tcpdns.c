@@ -255,7 +255,7 @@ static ssize_t tcpdns_recv(struct proxy *proxy, char *data, size_t size)
 /* internal destroy function, called when refcnt reaches zero */
 static void tcpdns_destroy_internal(struct proxy_tcpdns *master)
 {
-    loglv(3, "tcpdns_destroy_internal: destroying tcpdns master");
+    loginfo("tcpdns_destroy_internal: destroying tcpdns master");
 
     while (master->workers)
         tcpdns_worker_destroy(master->workers);
@@ -303,7 +303,7 @@ struct proxy *tcpdns_create(struct loopctx *loop, userev_fn_t *userev,
 {
     struct proxy_tcpdns *master;
 
-    loglv(3, "tcpdns_create: creating new struct proxy_tcpdns");
+    loginfo("tcpdns_create: creating new struct proxy_tcpdns");
 
     if ((master = calloc(1, sizeof(struct proxy_tcpdns))) == NULL)
         oom();

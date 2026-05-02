@@ -267,8 +267,8 @@ static void http_epcb_events(struct epcb_ops *epcb, unsigned int events)
         return;
     }
 
-    loglv(3, "http_epcb_events: handshaking with %s:%u/tcp [%s]",
-             self->addr, (unsigned)self->port, phasestr[self->phase]);
+    loginfo("http_epcb_events: handshaking with %s:%u/tcp [%s]",
+            self->addr, (unsigned)self->port, phasestr[self->phase]);
 
     if (self->phase == PHASE_SEND_REQUEST) {
         http_handshake_output(self);
@@ -351,8 +351,8 @@ struct proxy *http_tcp_create(struct loopctx *loop, userev_fn_t *userev,
     struct proxy_http *self;
     struct nspconf *conf = current_nspconf();
 
-    loglv(3, "http_tcp_create: creating new struct proxy_http for %s:%u/tcp",
-             addr, (unsigned)port);
+    loginfo("http_tcp_create: creating new struct proxy_http for %s:%u/tcp",
+            addr, (unsigned)port);
 
     if (strlen(addr) > SERVNAME_MAXLEN)
         return NULL;
