@@ -260,11 +260,11 @@ static void tcpdns_destroy_internal(struct proxy_tcpdns *master)
     while (master->workers)
         tcpdns_worker_destroy(master->workers);
 
-    if (master->evfd != -1)
-        if (close(master->evfd) == -1) {
-            perror("close()");
-            abort();
-        }
+    if (master->evfd != -1) {
+        if (close(master->evfd) == -1)
+            logwarn("tcpdns_destroy_internal: close evfd failed: %s",
+                    strerror(-errno));
+    }
 
     free(master);
 }
