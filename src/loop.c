@@ -1,11 +1,9 @@
 #include "loop.h"
 
-#include <errno.h>
 #include <signal.h>
 #include <sys/epoll.h>
 #include <sys/signalfd.h>
 #include <sys/wait.h>
-#include <unistd.h>
 
 struct loopctx {
     int sigfd;

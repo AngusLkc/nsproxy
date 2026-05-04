@@ -1,5 +1,4 @@
 #include <arpa/inet.h>
-#include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <linux/if_tun.h>
@@ -16,7 +15,6 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-#include <unistd.h>
 
 #include "common.h"
 #include "loop.h"

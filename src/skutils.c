@@ -1,9 +1,6 @@
 #include "skutils.h"
-#include <stdlib.h>
-#include <errno.h>
+
 #include <netdb.h>
-#include <string.h>
-#include <unistd.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/epoll.h>

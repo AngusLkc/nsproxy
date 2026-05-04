@@ -1,8 +1,5 @@
 #include "core.h"
 
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/timerfd.h>

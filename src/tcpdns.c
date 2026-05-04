@@ -2,10 +2,8 @@
 
 #include <arpa/inet.h>
 #include <endian.h>
-#include <errno.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
-#include <unistd.h>
 
 #include "direct.h"
 #include "http.h"
