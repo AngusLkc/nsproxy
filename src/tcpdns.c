@@ -225,8 +225,8 @@ static ssize_t tcpdns_recv(struct proxy *proxy, char *data, size_t size)
 {
     struct proxy_tcpdns *master = container_of(proxy, struct proxy_tcpdns, ops);
     struct tcpdns_worker *worker;
-    ssize_t szrepl;
     ssize_t nread;
+    size_t szrepl, szcopy;
     uint64_t val;
 
     if ((nread = read(master->evfd, &val, sizeof(val))) == -1)
@@ -242,17 +242,18 @@ static ssize_t tcpdns_recv(struct proxy *proxy, char *data, size_t size)
     if (!worker)
         return -EAGAIN; /* no worker marked done */
 
-    /* copy answer */
+    /* got answer size */
+    assert(worker->nbuffer >= 2); /* worker marked done is guaranted this */
     szrepl = worker->nbuffer - 2;
-    assert(szrepl >= 0);
-    memcpy(data, worker->buffer + 2, szrepl);
 
-    loglv(2, "+++ tcpdns %zd bytes answer", szrepl);
+    /* follow UDP socket semantics: silently truncated if buffer is too small */
+    szcopy = szrepl <= size ? szrepl : size;
+    memcpy(data, worker->buffer + 2, szcopy);
 
-    /* free */
+    loglv(2, "+++ tcpdns %zd bytes answer", szcopy);
+
     tcpdns_worker_destroy(worker);
-
-    return szrepl;
+    return szcopy;
 }
 
 /* internal destroy function, called when refcnt reaches zero */
