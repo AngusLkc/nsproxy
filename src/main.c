@@ -203,11 +203,6 @@ static int bringup_tun(void)
         perror("ioctl(SIOCSIFADDR)");
         exit(EXIT_FAILURE);
     }
-    inet_pton(AF_INET, NSPROXY_GATEWAY_IP, &sai->sin_addr);
-    if (ioctl(sk, SIOCGIFDSTADDR, &ifr) < 0) {
-        perror("ioctl(SIOCGIFDSTADDR)");
-        exit(EXIT_FAILURE);
-    }
     inet_pton(AF_INET, NSPROXY_NETMASK, &sai->sin_addr);
     if (ioctl(sk, SIOCSIFNETMASK, &ifr) < 0) {
         perror("ioctl(SIOCSIFNETMASK)");
