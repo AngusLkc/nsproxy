@@ -93,12 +93,15 @@ static void tcpdns_worker_handle_event(void *userp, unsigned int event,
     if (event & EPOLLIN) {
         nread = proxy_recv(worker->proxy, worker->buffer + worker->nbuffer,
                            sizeof(worker->buffer) - worker->nbuffer);
-        if (nread > 0) {
-            worker->nbuffer += nread;
-        } else {
-            tcpdns_worker_destroy(worker);
+        if (nread == -EAGAIN) {
+            return; /* not finish */
+        } else if (nread <= 0) {
+            tcpdns_worker_destroy(worker); /* error / closed */
             return;
+        } else {
+            worker->nbuffer += nread;
         }
+
         if (worker->nbuffer > 2) {
             uint16_t rsz;
             uint64_t sema = 1;
@@ -118,18 +121,22 @@ static void tcpdns_worker_handle_event(void *userp, unsigned int event,
             if (write(worker->master->evfd, &sema, sizeof(sema)) == -1)
                 tcpdns_worker_destroy(worker);
         }
-        return;
+
+        return; /* only handle single type of event */
     }
 
     if (event & EPOLLOUT) {
         nsent = proxy_send(worker->proxy, worker->buffer, worker->nbuffer);
-        if (nsent > 0) {
+        if (nsent == -EAGAIN) {
+            return; /* not finish */
+        } else if (nsent <= 0) {
+            tcpdns_worker_destroy(worker); /* error / closed */
+            return;
+        } else {
             worker->nbuffer -= nsent;
             memmove(worker->buffer, worker->buffer + nsent, worker->nbuffer);
-        } else {
-            tcpdns_worker_destroy(worker);
-            return;
         }
+
         if (worker->nbuffer == 0) {
             proxy_evctl(worker->proxy, EPOLLIN, 1);
             proxy_evctl(worker->proxy, EPOLLOUT, 0);
