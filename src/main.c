@@ -420,8 +420,10 @@ static int recv_fd(int sock)
 
 /* tasks in parent process are:
    1. Receive TUN file descriptor from child process.
-   2. Start event loop, the event loop will handle IP packets from TUN
-      device and forward traffic to proxy server.
+   2. Initialize lwIP / epoll / sigprocmask.
+   3. Notify the child that parent is ready.
+   4. Start the event loop, keep the event loop running, the event loop will
+      handle IP packets from TUN device and forward traffic to proxy server.
 */
 static int parent(int sk)
 {
@@ -429,7 +431,6 @@ static int parent(int sk)
     sigset_t mask;
     struct loopctx *loop;
     struct corectx *core;
-    char dummy = '\0';
 
     /* become a subreaper, receive SIGCHLD for grandchilds */
     if (prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) == -1) {
@@ -457,13 +458,6 @@ static int parent(int sk)
         exit(EXIT_FAILURE);
     }
 
-    /* write a byte after sigmask is set, indicate set up completely */
-    if (write(sk, &dummy, sizeof(dummy)) == -1) {
-        perror("write()");
-        exit(EXIT_FAILURE);
-    }
-    close(sk);
-
     if (loop_init(&loop, chdsigfd) == -1) {
         fprintf(stderr, "Error: init event loop module failed");
         exit(EXIT_FAILURE);
@@ -472,6 +466,13 @@ static int parent(int sk)
         fprintf(stderr, "Error: init core forwarding module failed");
         exit(EXIT_FAILURE);
     }
+
+    /* write a byte after initialization, notify that parent is ready */
+    if (write(sk, &(char){ 0 }, sizeof(char)) == -1) {
+        perror("write()");
+        exit(EXIT_FAILURE);
+    }
+    close(sk);
 
     loginfo("parent: starting event loop");
     if ((rc = loop_run(loop)) < 0) {
@@ -491,12 +492,12 @@ static int parent(int sk)
    1. Enter a new net_namespace.
    2. Create a TUN device and configure networking.
    3. Send TUN file descriptor to parent process.
-   4. exec(2) target application.
+   4. Wait parent is ready to start.
+   5. exec(2) target application. exec(2) ends the child process's lifecycle.
 */
 static int child(int sk, char *cmd[])
 {
     int tunfd;
-    char dummy;
     uid_t uid, gid;
     struct nspconf *conf = current_nspconf();
 
@@ -557,9 +558,9 @@ static int child(int sk, char *cmd[])
 
     send_fd(sk, tunfd);
 
-    /* wait for parent process to set sigmask,
-       prevent child process being terminated before sigmask is set  */
-    if (read(sk, &dummy, sizeof(dummy)) == -1) {
+    /* wait for parent process to ready, avoid potential race conditions,
+       prevent child process being terminated before sigprocmask is set */
+    if (read(sk, &(char){ 0 }, sizeof(char)) == -1) {
         perror("read()");
         exit(EXIT_FAILURE);
     }
