@@ -25,8 +25,9 @@ int skutils_connect(struct skinfo *info, const char *addr, uint16_t port,
 
     sfd = socket(ai->ai_family, type | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (sfd == -1) {
+        int ret = -errno;
         freeaddrinfo(ai);
-        return -errno;
+        return ret;
     }
 
     /* try to enable TCP_NODELAY, failure is not checked */
@@ -35,9 +36,10 @@ int skutils_connect(struct skinfo *info, const char *addr, uint16_t port,
 
     if (connect(sfd, ai->ai_addr, ai->ai_addrlen) == -1) {
         if (errno != EINPROGRESS) {
+            int ret = -errno;
             freeaddrinfo(ai);
             close(sfd);
-            return -errno;
+            return ret;
         }
     }
 
