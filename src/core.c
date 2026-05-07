@@ -731,7 +731,7 @@ err_t core_udp_new(struct udp_pcb *pcb)
     }
 
     ipaddr_ntoa_r(&pcb->local_ip, ip, sizeof(ip));
-    if (conf->proxytype == PROXY_SOCKS5) {
+    if (conf->proxytype == PROXY_SOCKS5 && core->assocready) {
         fwd->proxy = socks_udp_create(core->loop, &udp_proxy_io_event, fwd,
                                       ip, pcb->local_port, core->udpassoc);
     } else if (conf->proxytype == PROXY_DIRECT) {
