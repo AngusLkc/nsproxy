@@ -147,7 +147,7 @@ static void tcpdns_master_epcb_events(struct epcb_ops *epcb, unsigned events)
 {
     struct proxy_tcpdns *master =
         container_of(epcb, struct proxy_tcpdns, evfdepcb);
-    master->userev(master->userp, events, 0);
+    master->userev(master->userp, events, PROXY_CONT);
 }
 
 /* empty impl for struct proxy :: shutdown */

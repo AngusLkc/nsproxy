@@ -40,7 +40,7 @@ struct proxy_direct {
 static void direct_epcb_events(struct epcb_ops *epcb, unsigned int events)
 {
     struct proxy_direct *self = container_of(epcb, struct proxy_direct, epcb);
-    self->userev(self->userp, events, 1);
+    self->userev(self->userp, events, PROXY_CONT);
 }
 
 /* impl for struct proxy :: shutdown */

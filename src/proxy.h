@@ -80,3 +80,6 @@ static inline void proxy_put(struct proxy *proxy)
    number if error
  */
 typedef void (userev_fn_t)(void *userp, unsigned int events, int status);
+
+#define PROXY_ABORT -1
+#define PROXY_CONT   0

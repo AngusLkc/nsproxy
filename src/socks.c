@@ -329,7 +329,7 @@ static void socks_handshake_output(struct proxy_socks *self)
     if (nsent == -1) {
         if (errno != EAGAIN) {
             socks_handshake_perror(self, errno);
-            self->userev(self->userp, 0, -1);
+            self->userev(self->userp, 0, PROXY_ABORT);
         }
         return;
     }
@@ -552,7 +552,7 @@ static void socks_handshake_input(struct proxy_socks *self)
     return;
 
 err_handshake_failed:
-    self->userev(self->userp, 0, -1);
+    self->userev(self->userp, 0, PROXY_ABORT);
 }
 
 static void socks_epcb_events(struct epcb_ops *epcb, unsigned int events)
@@ -561,7 +561,7 @@ static void socks_epcb_events(struct epcb_ops *epcb, unsigned int events)
 
     /* we don't care events after handshaked, just forward event to user */
     if (self->phase == PHASE_FORWARDING) {
-        self->userev(self->userp, events, 0);
+        self->userev(self->userp, events, PROXY_CONT);
         return;
     }
 
