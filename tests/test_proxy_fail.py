@@ -65,8 +65,8 @@ def _test_proxy_fail(nsproxy_runner, extra_args, is_udp=False):
         f"Client didn't got {error_string}."
         f"stdout: {cl_out}, stderr: {cl_err}"
     )
-    assert client.returncode != 0, (
-        f"Expected client to fail when proxy is unreachable."
+    assert client.returncode == 1, (
+        f"Expected client exited with status 1."
         f"stdout: {cl_out}, stderr: {cl_err}"
     )
 
