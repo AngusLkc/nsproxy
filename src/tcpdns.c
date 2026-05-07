@@ -196,10 +196,15 @@ static ssize_t tcpdns_send(struct proxy *proxy, const char *data, size_t size)
         worker->proxy =
             http_tcp_create(master->loop, &tcpdns_worker_handle_event, worker,
                             conf->dnssrv, conf->dnsport);
-    else
+    else if (conf->proxytype == PROXY_DIRECT)
         worker->proxy =
             direct_tcp_create(master->loop, &tcpdns_worker_handle_event, worker,
                               conf->dnssrv, conf->dnsport);
+
+    if (worker->proxy == NULL) {
+        free(worker);
+        return -EINVAL;
+    }
 
     /* insert to front of worker list */
     worker->prev = NULL;
