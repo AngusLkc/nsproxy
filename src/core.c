@@ -849,7 +849,7 @@ static void core_timerfd_epcb_events(struct epcb_ops *epcb, unsigned int events)
 
     if (read(core->timerfd, &expired, sizeof(expired)) == -1) {
         logwarn("core_timerfd_epcb_events: read timerfd failed: %s",
-                strerror(-errno));
+                strerror(errno));
         return;
     }
     while (expired--) {
