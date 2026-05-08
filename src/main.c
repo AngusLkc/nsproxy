@@ -295,8 +295,7 @@ static int unshare_mount(void)
     return 0;
 
 failed:
-    loglv(0, "Warning: Unshare mount namespace failed. "
-             "DNS redirect may not work.");
+    loglv0("Warning: unshare mount namespace failed. DNS redirect may not work");
     return -1;
 }
 
@@ -440,8 +439,8 @@ static int parent(int sk)
 
     /* become a subreaper, receive SIGCHLD for grandchilds */
     if (prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) == -1) {
-        loglv(0, "Warning: Failed to set child subreaper, "
-                 "grandchild processes may not be tracked.");
+        loglv0("Warning: Failed to set child subreaper, grandchild processes "
+               "may not be tracked.");
     }
 
     tunfd = recv_fd(sk);
@@ -535,12 +534,11 @@ static int child(int sk, char *cmd[])
         if (conf->dnstype != DNS_REDIR_OFF) {
             if (overwrite_conf("/etc/resolv.conf",
                                "nameserver " NSPROXY_GATEWAY_IP "\n", 1) < 0)
-                loglv(0, "Warning: re-bind /etc/resolv.conf failed. "
-                         "DNS redirect may not work.");
-            if (overwrite_conf("/etc/nsswitch.conf",
-                               "hosts: files dns\n", 1) < 0)
-                loglv(0, "Warning: re-bind /etc/nsswitch.conf failed. "
-                         "DNS redirect may not work.");
+                loglv0("Warning: re-bind /etc/resolv.conf failed. DNS redirect "
+                       "may not work.");
+            if (overwrite_conf("/etc/nsswitch.conf", "hosts: files dns\n", 1) < 0)
+                loglv0("Warning: re-bind /etc/nsswitch.conf failed. DNS "
+                       "redirect may not work.");
         }
     }
 
@@ -776,10 +774,10 @@ int main(int argc, char *argv[])
         else
             strcpy(dispdns, "(off)");
 
-        loglv(0, "Proxy Server:     %s", dispserv);
-        loglv(0, "DNS Redirection:  %s", dispdns);
-        loglv(0, "Verbose:          %s",
-              nsproxy_verbose_level__ > 0 ? "yes" : "no");
+        loglv0("Proxy Server:     %s", dispserv);
+        loglv0("DNS Redirection:  %s", dispdns);
+        loglv0("Verbose:          %s",
+               nsproxy_verbose_level__ > 0 ? "yes" : "no");
     }
 
     /* main */

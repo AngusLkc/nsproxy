@@ -36,15 +36,15 @@ static int sigfd_handler(struct loopctx *loop)
             continue; /* child not dead */
         exited = WIFEXITED(stat);
         exitcode = exited ? WEXITSTATUS(stat) : (128 + WTERMSIG(stat));
-        loglv(1, "Child process %d %s %d", pid,
-                 exited ? "exited with status" : "killed by signal",
-                 exited ? WEXITSTATUS(stat) : WTERMSIG(stat));
+        loglv1("Child process %d %s %d", pid,
+               exited ? "exited with status" : "killed by signal",
+               exited ? WEXITSTATUS(stat) : WTERMSIG(stat));
     }
 
     /* no child could be reaped, may some still running, or all exited */
 
     if (pid == -1 && errno == ECHILD) {
-        loglv(1, "All child exited, cleaning ...");
+        loglv1("All child exited, cleaning ...");
         return exitcode;
     } else if (pid == -1) {
         int ret = -errno;
@@ -65,7 +65,7 @@ int loop_init(struct loopctx **loop, int sigfd)
         oom();
 
     if ((p->epfd = epoll_create1(EPOLL_CLOEXEC)) == -1) {
-        loglv(0, "loop_init: epoll_create1() failed: %s", strerror(errno));
+        loglv0("loop_init: epoll_create1() failed: %s", strerror(errno));
         goto failed_after_malloc;
     }
 
@@ -73,7 +73,7 @@ int loop_init(struct loopctx **loop, int sigfd)
     ev.events = EPOLLIN;
     ev.data.ptr = &p->sigfd;
     if (epoll_ctl(p->epfd, EPOLL_CTL_ADD, sigfd, &ev) == -1) {
-        loglv(0, "loop_init: epoll_ctl(sigfd) failed: %s", strerror(errno));
+        loglv0("loop_init: epoll_ctl(sigfd) failed: %s", strerror(errno));
         goto failed_after_epoll_create;
     }
 

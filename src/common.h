@@ -29,6 +29,12 @@
             fprintf(stderr, "[nsproxy] " str "\n", ##__VA_ARGS__); \
     } while (0)
 
+/* log to user */
+#define loglv0(str, ...) loglv(0, str, ##__VA_ARGS__)
+#define loglv1(str, ...) loglv(1, str, ##__VA_ARGS__)
+#define loglv2(str, ...) loglv(2, str, ##__VA_ARGS__)
+
+/* log for debug */
 #define loginfo(str, ...) loglv(3, str, ##__VA_ARGS__)
 #define logwarn(str, ...) loglv(3, "[WARN] " str, ##__VA_ARGS__)
 

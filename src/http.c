@@ -97,11 +97,11 @@ struct proxy_http {
 static void http_handshake_perror(struct proxy_http *self, int err)
 {
     if (err > 0)
-        loglv(0, "Proxy server reset unexpectedly during HTTP handshake "
-                 "phase [%s]: %s", phasestr[self->phase], strerror(err));
+        loglv0("Proxy server reset unexpectedly during HTTP handshake phase "
+               "[%s]: %s", phasestr[self->phase], strerror(err));
     else
-        loglv(0, "Proxy server closed unexpectedly during HTTP handshake "
-                 "phase [%s]", phasestr[self->phase]);
+        loglv0("Proxy server closed unexpectedly during HTTP handshake phase "
+               "[%s]", phasestr[self->phase]);
 }
 
 /* epoll event callback
@@ -140,8 +140,8 @@ static void http_handshake_input(struct proxy_http *self)
     /* discard http response part in socket buffer */
     nread = recv(self->sfd, buff->data + buff->size, ndiscard, 0);
     if (nread != ndiscard) {
-        loglv(0, "Handshake failed, recv() returned %zd, expected %zd", nread,
-                 ndiscard);
+        loglv0("Handshake failed, recv() returned %zd, expected %zd", nread,
+               ndiscard);
         goto failed_handshake;
     }
     buff->size += ndiscard;
@@ -150,8 +150,8 @@ static void http_handshake_input(struct proxy_http *self)
     if (!crlf2) {
         /* failed, handshake not finished but buffer full */
         if (buff->size == buff->capacity - 1) {
-            loglv(0, "Proxy server returned a header that is too large "
-                     "during the handshake.");
+            loglv0("Proxy server returned a header that is too large during the"
+                   " handshake.");
             goto failed_handshake;
         }
         /* if not failed, wait for rest handshake message */
@@ -160,22 +160,22 @@ static void http_handshake_input(struct proxy_http *self)
 
     /* check response */
     if (sscanf(buff->data, "HTTP/1.%c %d", &vermin, &code) != 2) {
-        loglv(0, "Proxy server returned invalid HTTP response header during "
-                 "handshake");
+        loglv0("Proxy server returned invalid HTTP response header during the "
+               "handshake.");
         goto failed_handshake;
     }
     if (code != 200) {
         if (code == 407 || code == 401) {
-            loglv(0, "Proxy authentication failed (HTTP %d). "
-                     "Please check your username and password.", code);
+            loglv0("Proxy authentication failed (HTTP %d). Please check your "
+                   "username and password.", code);
         } else {
-            loglv(0, "Proxy server returned HTTP error %d", code);
+            loglv0("Proxy server returned HTTP error %d", code);
         }
         goto failed_handshake;
     }
 
     self->phase = PHASE_FORWARDING;
-    loglv(2, "... handshaked %s:%u/tcp", self->addr, (unsigned)self->port);
+    loglv2("... handshaked %s:%u/tcp", self->addr, (unsigned)self->port);
 
     /* good, handshake finish, listen and forward epoll event for user */
     self->events = EPOLLOUT | EPOLLIN;

@@ -43,8 +43,8 @@ int skutils_connect(struct skinfo *info, const char *addr, uint16_t port,
         }
     }
 
-    loglv(1, "%s %s:%u/%s", type == SOCK_STREAM ? "Connecting" : "Forwarding",
-             info->addr, (unsigned)info->port, info->proto);
+    loglv1("%s %s:%u/%s", type == SOCK_STREAM ? "Connecting" : "Forwarding",
+           info->addr, (unsigned)info->port, info->proto);
     freeaddrinfo(ai);
     return sfd;
 }
@@ -78,8 +78,8 @@ ssize_t skutils_send(struct skinfo *info, int sfd, const char *data,
 
     info->nsent += nsent;
 
-    loglv(2, "--- %zd bytes sent to %s:%u/%s", nsent, info->addr,
-             (unsigned)info->port, info->proto);
+    loglv2("--- %zd bytes sent to %s:%u/%s", nsent, info->addr,
+           (unsigned)info->port, info->proto);
     return nsent;
 }
 
@@ -92,8 +92,8 @@ ssize_t skutils_sendmsg(struct skinfo *info, int sfd, struct msghdr *msg)
 
     info->nsent += nsent;
 
-    loglv(2, "--- %zd bytes sent to %s:%u/%s", nsent, info->addr,
-             (unsigned)info->port, info->proto);
+    loglv2("--- %zd bytes sent to %s:%u/%s", nsent, info->addr,
+           (unsigned)info->port, info->proto);
     return nsent;
 }
 
@@ -106,8 +106,8 @@ ssize_t skutils_recv(struct skinfo *info, int sfd, char *data, size_t size)
 
     info->nread += nread;
 
-    loglv(2, "+++ %zd bytes received from %s:%u/%s", nread, info->addr,
-             (unsigned)info->port, info->proto);
+    loglv2("+++ %zd bytes received from %s:%u/%s", nread, info->addr,
+           (unsigned)info->port, info->proto);
     return nread;
 }
 
@@ -123,8 +123,8 @@ int skutils_shutdown(struct skinfo *info, struct loopctx *loop, int *sfd,
             return -errno;
     }
 
-    loglv(2, "... shutdown %s:%u/%s", info->addr, (unsigned)info->port,
-             info->proto);
+    loglv2("... shutdown %s:%u/%s", info->addr, (unsigned)info->port,
+           info->proto);
     return 0;
 }
 
@@ -145,6 +145,6 @@ void skutils_close_unreg(struct skinfo *info, struct loopctx *loop, int *sfd)
 
     *sfd = -1;
 
-    loglv(1, "Closed %s:%u/%s (sent %zu, received %zu bytes)", info->addr,
-             (unsigned)info->port, info->proto, info->nsent, info->nread);
+    loglv1("Closed %s:%u/%s (sent %zu, received %zu bytes)", info->addr,
+           (unsigned)info->port, info->proto, info->nsent, info->nread);
 }

@@ -260,11 +260,11 @@ static ssize_t socks5_addr_get(struct socks5addr *addr, const char *buffer,
 static void socks_handshake_perror(struct proxy_socks *self, int err)
 {
     if (err > 0)
-        loglv(0, "Proxy server reset unexpectedly during SOCKS5 handshake "
-                 "phase [%s]: %s", phasestr[self->phase], strerror(err));
+        loglv0("Proxy server reset unexpectedly during SOCKS5 handshake phase "
+               "[%s]: %s", phasestr[self->phase], strerror(err));
     else
-        loglv(0, "Proxy server closed unexpectedly during SOCKS5 handshake "
-                 "phase [%s]", phasestr[self->phase]);
+        loglv0("Proxy server closed unexpectedly during SOCKS5 handshake phase "
+               "[%s]", phasestr[self->phase]);
 }
 
 static void socks_handshake_output(struct proxy_socks *self)
@@ -370,21 +370,21 @@ static void socks_handshake_input(struct proxy_socks *self)
 
         /* no a correct protocol header */
         if (buff->data[0] != 5) {
-            loglv(0, "Proxy server return a bad reply: VER field is 0x%02x, "
-                     "expected 0x05", (unsigned char)buff->data[0]);
+            loglv0("Proxy server return a bad reply: VER field is 0x%02x, "
+                   "expected 0x05", (unsigned char)buff->data[0]);
             goto failed_handshake;
         }
 
         /* server reject our all method */
         if ((unsigned char)buff->data[1] == 0xFF) {
-            loglv(0, "Proxy server requires authentication. "
-                     "Please check your username and password.");
+            loglv0("Proxy server requires authentication. Please check your "
+                   "username and password.");
             goto failed_handshake;
         } /* - else: server selected a method */
 
         /* should be only one method */
         if (buff->size != 2) {
-            loglv(0, "Proxy server returned invalid method response");
+            loglv0("Proxy server returned invalid method response");
             goto failed_handshake;
         }
 
@@ -397,8 +397,8 @@ static void socks_handshake_input(struct proxy_socks *self)
             self->phase = PHASE_SEND_REQUEST;
         } else {
             /* other */
-            loglv(0, "Proxy server returned unsupported authentication "
-                     "method: 0x%02x", (unsigned char)buff->data[1]);
+            loglv0("Proxy server returned unsupported authentication method: "
+                   "0x%02x", (unsigned char)buff->data[1]);
             goto failed_handshake;
         }
     }
@@ -416,7 +416,7 @@ static void socks_handshake_input(struct proxy_socks *self)
 
         /* hanshake failed because server didn't follow RFC1929 */
         if (buff->size > 2) {
-            loglv(0, "Proxy server returned invalid auth response");
+            loglv0("Proxy server returned invalid auth response");
             goto failed_handshake;
         }
 
@@ -425,8 +425,8 @@ static void socks_handshake_input(struct proxy_socks *self)
             return;
 
         if (buff->data[0] != 1 || buff->data[1] != 0) {
-            loglv(0, "SOCKS5 authentication failed. "
-                     "Please check your username and password.");
+            loglv0("SOCKS5 authentication failed. Please check your username "
+                   "and password.");
             goto failed_handshake;
         }
 
@@ -478,8 +478,8 @@ static void socks_handshake_input(struct proxy_socks *self)
         /* discard socks handshake reply part in socket buffer */
         nread = recv(self->sfd, buff->data + buff->size, s, 0);
         if (nread != s) {
-            loglv(0, "Handshake failed, recv() returned %zd, expected %zd",
-                     nread, s);
+            loglv0("Handshake failed, recv() returned %zd, expected %zd",
+                   nread, s);
             goto failed_handshake;
         }
         buff->size += nread;
@@ -489,8 +489,8 @@ static void socks_handshake_input(struct proxy_socks *self)
             /* failed, handshake not finished but connection lost or buffer
                full */
             if (buff->size == buff->capacity) {
-                loglv(0, "Proxy server returned a header that is too large "
-                         "during the handshake.");
+                loglv0("Proxy server returned a header that is too large "
+                       "during the handshake.");
                 goto failed_handshake;
             }
 
@@ -499,25 +499,24 @@ static void socks_handshake_input(struct proxy_socks *self)
         }
 
         if (hdr.ver != 5) {
-            loglv(0, "Proxy server return a bad reply: VER field is 0x%02x, "
-                     "expected 0x05", hdr.ver);
+            loglv0("Proxy server return a bad reply: VER field is 0x%02x, "
+                   "expected 0x05", hdr.ver);
             goto failed_handshake;
         }
 
         if (hdr.rsp != 0) {
             if (hdr.rsp == 2) {
-                loglv(0, "Proxy server rejected our request: %s. "
-                         "Please check your username and password.",
-                         rspstr[2]);
+                loglv0("Proxy server rejected our request: %s. Please check "
+                       "your username and password.", rspstr[2]);
             } else {
-                loglv(0, "Proxy server rejected our request: %s",
-                         hdr.rsp > 9 ? rspstr[9] : rspstr[hdr.rsp]);
+                loglv0("Proxy server rejected our request: %s",
+                       hdr.rsp > 9 ? rspstr[9] : rspstr[hdr.rsp]);
             }
             goto failed_handshake;
         }
 
         if (self->type == UDP_ASSOCIATE) {
-            loglv(1, "UDP relay address: %s:%u", ad.addr, (unsigned)ad.port);
+            loglv1("UDP relay address: %s:%u", ad.addr, (unsigned)ad.port);
             if ((self->relay = calloc(1, sizeof(struct reladdr))) == NULL)
                 oom();
             static_assert(sizeof(self->relay->addr) >= sizeof(ad.addr), "???");
@@ -526,7 +525,7 @@ static void socks_handshake_input(struct proxy_socks *self)
         }
 
         self->phase = PHASE_FORWARDING;
-        loglv(2, "... handshaked %s:%u", self->addr, (unsigned)self->port);
+        loglv2("... handshaked %s:%u", self->addr, (unsigned)self->port);
     }
 
     /* clear input buffer */
