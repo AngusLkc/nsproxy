@@ -88,30 +88,21 @@ static ssize_t write_string(const char *fname, const char *str)
     return w;
 }
 
-static void map_uid(unsigned int from, unsigned int to)
+static void map_ids(uid_t uid, uid_t gid)
 {
-    ssize_t ret;
-    char str[32];
+    unsigned long luid = uid, lgid = gid;
+    ssize_t nwrite;
+    char buff[64];
 
-    snprintf(str, sizeof(str), "%u %u 1\n", from, to);
-    ret = write_string("/proc/self/uid_map", str);
-
-    if (ret < 0) {
-        fprintf(stderr, "nsproxy: map_uid() failed: %s\n", strerror(-ret));
+    snprintf(buff, sizeof(buff), "%lu %lu 1\n", luid, luid);
+    if ((nwrite = write_string("/proc/self/uid_map", buff)) < 0) {
+        fprintf(stderr, "Error: write uid_map failed: %s\n", strerror(-nwrite));
         exit(EXIT_FAILURE);
     }
-}
 
-static void map_gid(unsigned int from, unsigned int to)
-{
-    ssize_t ret;
-    char str[32];
-
-    snprintf(str, sizeof(str), "%u %u 1\n", from, to);
-    ret = write_string("/proc/self/gid_map", str);
-
-    if (ret < 0) {
-        fprintf(stderr, "nsproxy: map_gid() failed: %s\n", strerror(-ret));
+    snprintf(buff, sizeof(buff), "%lu %lu 1\n", lgid, lgid);
+    if ((nwrite = write_string("/proc/self/gid_map", buff)) < 0) {
+        fprintf(stderr, "Error: write gid_map failed: %s\n", strerror(-nwrite));
         exit(EXIT_FAILURE);
     }
 }
@@ -516,8 +507,7 @@ static int child(int sk, char *cmd[])
 
         set_setgroups("deny");
 
-        map_uid(uid, uid);
-        map_gid(gid, gid);
+        map_ids(uid, gid);
     } else {
         loginfo("child: created net namespace");
     }
