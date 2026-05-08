@@ -74,8 +74,8 @@
 #define lwip_htons(x)                  htobe16(x)
 #define lwip_htonl(x)                  htobe32(x)
 #define lwip_strnstr(buffer, token, n) strnstr(buffer, token, n)
-#define lwip_stricmp(str1, str2)       stricmp(str1, str2)
-#define lwip_strnicmp(str1, str2, len) strnicmp(str1, str2, len)
+#define lwip_stricmp(str1, str2)       strcasecmp(str1, str2)
+#define lwip_strnicmp(str1, str2, len) strncasecmp(str1, str2, len)
 #define lwip_itoa(buf, sz, num)        snprintf(buf, sz, "%d", num)
 
 #define LWIP_PLATFORM_ASSERT(x)                                       \
