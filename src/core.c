@@ -104,31 +104,31 @@ static void tun_input(struct netif *tunif)
 static err_t tun_output(struct netif *tunif, struct pbuf *p)
 {
     struct corectx *core = tunif->state;
-    struct pbuf *orig = p;
+    struct pbuf *seg;
     struct iovec iov[16];
-    size_t n = 0;
+    size_t i, clen;
     ssize_t nwrite;
 
-    if (p->tot_len > NSPROXY_MTU) {
+    clen = pbuf_clen(p);
+
+    if (clen > arraysizeof(iov) || p->tot_len > NSPROXY_MTU) {
         LWIP_DEBUGF(NETIF_DEBUG, ("tun_output: packet too large\n"));
         return ERR_IF;
     }
 
-    while (n != arraysizeof(iov)) {
-        iov[n].iov_base = p->payload;
-        iov[n].iov_len = p->len;
-        n++;
-        /* lwip used below as loop end condition, not p->next == NULL */
-        if (p->len == p->tot_len)
-            break;
-        else
-            p = p->next;
+    /* iov = segments in pbuf */
+    for (seg = p, i = 0; i < clen; i++) {
+        iov[i].iov_base = seg->payload;
+        iov[i].iov_len = seg->len;
+        seg = seg->next;
     }
-    if ((nwrite = writev(core->tunfd, iov, n)) == -1) {
+
+    if ((nwrite = writev(core->tunfd, iov, clen)) == -1) {
         logwarn("tun_output: writev tunfd failed: %s", strerror(errno));
         return ERR_IF;
     }
-    if (nwrite != orig->tot_len) {
+    if (nwrite != p->tot_len) {
+        /* should not happen, we have checked p->tot_len <= MTU */
         LWIP_DEBUGF(NETIF_DEBUG, ("tun_output: partial write\n"));
         return ERR_IF;
     }
