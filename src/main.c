@@ -449,11 +449,11 @@ static int parent(int sk)
     }
 
     if (loop_init(&loop, chdsigfd) == -1) {
-        fprintf(stderr, "Error: init event loop module failed");
+        fprintf(stderr, "Error: init event loop module failed\n");
         exit(EXIT_FAILURE);
     }
     if (core_init(&core, loop, tunfd) == -1) {
-        fprintf(stderr, "Error: init core forwarding module failed");
+        fprintf(stderr, "Error: init core lwIP forwarding module failed\n");
         exit(EXIT_FAILURE);
     }
 
@@ -770,9 +770,11 @@ int main(int argc, char *argv[])
             strcpy(dispserv, "(direct)");
 
         if (conf.dnstype == DNS_REDIR_TCP)
-            snprintf(dispdns, sizeof(dispdns), "tcp://%s", conf.dnssrv);
+            snprintf(dispdns, sizeof(dispdns), "tcp://%s:%u",
+                     conf.dnssrv, (unsigned)conf.dnsport);
         else if (conf.dnstype == DNS_REDIR_UDP)
-            snprintf(dispdns, sizeof(dispdns), "udp://%s", conf.dnssrv);
+            snprintf(dispdns, sizeof(dispdns), "udp://%s:%u", 
+                     conf.dnssrv, (unsigned)conf.dnsport);
         else
             strcpy(dispdns, "(off)");
 
