@@ -354,9 +354,7 @@ static void send_fd(int sock, int fd)
     char dummy = '\0';
     struct iovec iov = { .iov_base = &dummy, .iov_len = 1 };
     char cmsgbuf[CMSG_SPACE(sizeof(int))] = { 0 };
-    struct msghdr msg = { .msg_name = NULL,
-                          .msg_namelen = 0,
-                          .msg_iov = &iov,
+    struct msghdr msg = { .msg_iov = &iov,
                           .msg_iovlen = 1,
                           .msg_control = cmsgbuf,
                           .msg_controllen = sizeof(cmsgbuf) };
@@ -381,10 +379,8 @@ static int recv_fd(int sock)
     ssize_t nrecv;
     char dummy = '\0';
     struct iovec iov = { .iov_base = &dummy, .iov_len = 1 };
-    char cmsgbuf[CMSG_SPACE(sizeof(int))];
-    struct msghdr msg = { .msg_name = NULL,
-                          .msg_namelen = 0,
-                          .msg_iov = &iov,
+    char cmsgbuf[CMSG_SPACE(sizeof(int))] = { 0 };
+    struct msghdr msg = { .msg_iov = &iov,
                           .msg_iovlen = 1,
                           .msg_control = cmsgbuf,
                           .msg_controllen = sizeof(cmsgbuf) };
