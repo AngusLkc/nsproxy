@@ -46,14 +46,14 @@ target_compile_definitions(nsproxy PRIVATE
 )
 
 target_compile_options(nsproxy PRIVATE
+    -fstack-protector-strong
     -Wall
     -Wextra
     -Wpedantic
     -Wvla
-    -Wno-unused-parameter
-    -Wno-unused-variable
-    -Wno-array-bounds # caused by tricky hacks in lwIP
-    -fstack-protector-strong
+    -Wno-unused-parameter # annoying in callback style programing
+    -Wno-array-bounds     # caused by tricky hacks in lwIP
+    $<$<C_COMPILER_ID:Clang>:-Wno-gnu-zero-variadic-macro-arguments> # suppress clang warning GNU extension ##__VA_ARGS__
 )
 
 include(GNUInstallDirs)
