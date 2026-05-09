@@ -53,7 +53,6 @@ int skutils_connect(struct skinfo *info, const char *addr, uint16_t port,
 int skutils_evctl(struct loopctx *loop, int sfd, unsigned int *events,
                   struct epcb_ops *epcb, unsigned int mask, int mode)
 {
-    int err = 0;
     unsigned int new_events, old_events = *events;
 
     switch (mode) {
@@ -64,14 +63,20 @@ int skutils_evctl(struct loopctx *loop, int sfd, unsigned int *events,
     }
 
     if (old_events != new_events) {
-        int op = (old_events == 0) ? EPOLL_CTL_ADD :
-                 (new_events == 0) ? EPOLL_CTL_DEL :
-                                     EPOLL_CTL_MOD;
-        if ((err = loop_epoll_ctl(loop, op, sfd, new_events, epcb)) == 0)
-            *events = new_events;
+        int op, err;
+
+        op = (old_events == 0) ? EPOLL_CTL_ADD :
+             (new_events == 0) ? EPOLL_CTL_DEL :
+                                 EPOLL_CTL_MOD;
+        if ((err = loop_epoll_ctl(loop, op, sfd, new_events, epcb)) < 0) {
+            logwarn("skutils_evctl: loop_epoll_ctl failed: %s", strerror(-err));
+            return err;
+        }
+
+        *events = new_events;
     }
 
-    return err;
+    return 0;
 }
 
 ssize_t skutils_send(struct skinfo *info, int sfd, const char *data,

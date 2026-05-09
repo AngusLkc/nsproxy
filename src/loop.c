@@ -123,22 +123,6 @@ int loop_run(struct loopctx *loop)
 int loop_epoll_ctl(struct loopctx *loop, int op, int fd, unsigned events,
                    struct epcb_ops *epcb)
 {
-    struct epoll_event ev;
-
-    ev.events = events;
-    ev.data.ptr = epcb;
-    if (epoll_ctl(loop->epfd, op, fd, &ev) == -1) {
-        int ret = -errno;
-        if (errno == EEXIST) {
-            logwarn("loop_epoll_ctl: fd %d is registered already", fd);
-        } else if (errno == ENOENT) {
-            logwarn("loop_epoll_ctl: fd %d is not registered", fd);
-        } else {
-            fprintf(stderr, "epoll_ctl(%d) failed: %s\n", op, strerror(errno));
-            abort();
-        }
-        return ret;
-    }
-
-    return 0;
+    struct epoll_event ev = { .events = events, .data.ptr = epcb };
+    return (epoll_ctl(loop->epfd, op, fd, &ev) == -1) ? -errno : 0;
 }

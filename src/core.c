@@ -890,11 +890,16 @@ int core_init(struct corectx **core, struct loopctx *loop, int tunfd)
         goto failed_after_timerfd_create;
     }
 
-    /* register tunfd and timerfd to epoll */
+    /* register tunfd to epoll */
     p->tunepcb.on_epoll_events = &core_tunfd_epcb_events;
-    loop_epoll_ctl(loop, EPOLL_CTL_ADD, tunfd, EPOLLIN, &p->tunepcb);
+    if (loop_epoll_ctl(loop, EPOLL_CTL_ADD, tunfd, EPOLLIN, &p->tunepcb) < 0)
+        goto failed_after_timerfd_create;
+
+    /* register timerfd to epoll */
     p->timerepcb.on_epoll_events = &core_timerfd_epcb_events;
-    loop_epoll_ctl(loop, EPOLL_CTL_ADD, p->timerfd, EPOLLIN, &p->timerepcb);
+    if (loop_epoll_ctl(loop, EPOLL_CTL_ADD, p->timerfd, EPOLLIN,
+                       &p->timerepcb) < 0)
+        goto failed_after_timerfd_create;
 
     lwip_init();
     ip4addr_aton(NSPROXY_GATEWAY_IP, &tunaddr);
