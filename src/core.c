@@ -686,16 +686,16 @@ static void tcp_proxy_io_event(void *userp, unsigned int events, int status)
     if (events & EPOLLERR)
         assert(events & (EPOLLIN | EPOLLOUT));
 
-    if (!err && !fwd->pcb->proxyestab) {
-        fwd->pcb->proxyestab = 1;
-        err = tcp_output(fwd->pcb);
-    }
-
     if (!err && (events & EPOLLIN))
         err = tcp_proxy_input(fwd);
 
     if (!err && (events & EPOLLOUT))
         err = tcp_proxy_output(fwd);
+
+    if (!err && !fwd->pcb->proxyestab) {
+        fwd->pcb->proxyestab = 1;
+        err = tcp_output(fwd->pcb);
+    }
 }
 
 /* called by lwip when a udp connection is create
