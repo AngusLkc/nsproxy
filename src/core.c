@@ -280,8 +280,8 @@ static void udp_forward_destroy(struct udp_forward *fwd)
     free(fwd);
 }
 
-/* try to recv data from proxy server and send to application
-   if ERR_ABRT is returned, fwd was free'ed, caller should not continue */
+/* Try to recv data from proxy server and send to application
+   If return value is not ERR_OK, fwd was free'ed, caller should not continue */
 static err_t udp_proxy_input(struct udp_forward *fwd)
 {
     struct proxy *proxy = fwd->proxy;
@@ -328,8 +328,8 @@ static err_t udp_proxy_input(struct udp_forward *fwd)
     return ret;
 }
 
-/* try to send data to proxy server, data already in fwd->rcvq
-   if ERR_ABRT is returned, fwd was free'ed, caller should not continue */
+/* Try to send data to proxy server, data already in fwd->rcvq
+   If return value is not ERR_OK, fwd was free'ed, caller should not continue */
 static err_t udp_proxy_output(struct udp_forward *fwd)
 {
     struct proxy *proxy = fwd->proxy;
@@ -393,14 +393,13 @@ failed_abort:
     return ERR_ABRT;
 }
 
-/* try to recv data from proxy server and send to application
-   may called from lwip context if
+/* Try to recv data from proxy server and send to application
+   May called from lwip context if
    - data are ack'ed by lwip
-   may called from epoll context if
+   May called from epoll context if
    - data are received from proxy server, in socket buffer
    - EOF is received from proxy server
-   if ERR_ABRT is returned, fwd was free'ed, caller should not continue
-*/
+   If return value is not ERR_OK, fwd was free'ed, caller should not continue */
 static err_t tcp_proxy_input(struct tcp_forward *fwd)
 {
     struct tcp_pcb *pcb = fwd->pcb;
@@ -464,6 +463,7 @@ static err_t tcp_proxy_input(struct tcp_forward *fwd)
         if (fwd->lwipeof && !fwd->rcvq) {
             loginfo("tcp_proxy_input: full-closing");
             tcp_forward_destroy(fwd, 0);
+            return ERR_CLSD;
         }
     }
 
@@ -476,13 +476,13 @@ failed_abort:
     return ERR_ABRT;
 }
 
-/* try to send data to proxy server
-   called from lwip context if
+/* Try to send data to proxy server
+   Called from lwip context if
    - data are received from lwip, in fwd->rcvq
    - EOF is received from lwip
-   called from epoll context if:
+   Called from epoll context if:
    - there is some free space available in socket buffer
-   if ERR_ABRT is returned, fwd was free'ed, caller should not continue
+   If return value is not ERR_OK, fwd was free'ed, caller should not continue
 */
 static err_t tcp_proxy_output(struct tcp_forward *fwd)
 {
@@ -521,6 +521,7 @@ static err_t tcp_proxy_output(struct tcp_forward *fwd)
         if (fwd->proxyeof && !fwd->sndq) {
             loginfo("tcp_proxy_output: full-closing");
             tcp_forward_destroy(fwd, 0);
+            return ERR_CLSD;
         }
     }
 
