@@ -412,7 +412,10 @@ err_t core_udp_new(struct udp_pcb *pcb)
     }
 
     ipaddr_ntoa_r(&pcb->local_ip, ip, sizeof(ip));
-    if (conf->proxytype == PROXY_SOCKS5 && core->assocready) {
+    if (conf->proxytype == PROXY_SOCKS5 && !core->assocready) {
+        fwd->proxy = NULL;
+        return ERR_OK;
+    } else if (conf->proxytype == PROXY_SOCKS5) {
         fwd->proxy = socks_udp_create(core->loop, &udp_proxy_io_event, fwd, ip,
                                       pcb->local_port, core->udpassoc);
     } else if (conf->proxytype == PROXY_DIRECT) {
@@ -434,10 +437,12 @@ static void udp_assoc_io_event(void *userp, unsigned int events)
 {
     struct corectx *core = userp;
     struct udp_forward *fwd;
-    int cdexp;
 
-    if (events != EPOLLOUT) {
-        /* UDP_ASSOCIATE failed, remove this connection */
+    /* udpassoc failed */
+    if (events & (EPOLLIN | EPOLLERR | EPOLLHUP)) {
+        int cdexp;
+
+        /* remove this connection */
         proxy_put(core->udpassoc);
         core->udpassoc = NULL;
         core->assocready = 0;
@@ -449,17 +454,42 @@ static void udp_assoc_io_event(void *userp, unsigned int events)
         /* set countdown, timer will re-associate after it expires */
         cdexp = core->assocretries <= 5 ? core->assocretries : 5;
         core->assoccd = 1 << cdexp; /* exponent backoff */
-    } else {
-        /* UDP_ASSOCIATE succeed */
-        proxy_evctl(core->udpassoc, EPOLLOUT, EVCLR);
-        core->assocready = 1;
-        core->assocretries = 0;
-        for (fwd = core->udplst; fwd;) {
-            /* fwd may be free'ed in udp_proxy_output, save next first */
-            struct udp_forward *next = fwd->next;
-            udp_proxy_output(fwd);
-            fwd = next;
+
+        return;
+    }
+
+    /* udpassoc succeed */
+    core->assocready = 1;
+    core->assocretries = 0;
+
+    /* udpassoc no need to write data, stop polling EPOLLOUT */
+    proxy_evctl(core->udpassoc, EPOLLOUT, EVCLR);
+
+    /* create struct proxy for udp_forward */
+    for (fwd = core->udplst; fwd;) {
+        struct udp_pcb *pcb = fwd->pcb;
+        char ip[IPADDR_STRLEN_MAX + 1];
+
+        /* it's a connected proxy_direct / proxy_tcpdns, skip */
+        if (fwd->proxy) {
+            fwd = fwd->next;
+            continue;
         }
+
+        /* create proxy_socks */
+        ipaddr_ntoa_r(&pcb->local_ip, ip, sizeof(ip));
+        fwd->proxy = socks_udp_create(core->loop, &udp_proxy_io_event, fwd, ip,
+                                      pcb->local_port, core->udpassoc);
+
+        /* proxy failed */
+        if (fwd->proxy == NULL) {
+            struct udp_forward *next = fwd->next; /* save next for linked-list */
+            udp_forward_destroy(fwd);
+            fwd = next;
+            continue;
+        }
+
+        fwd = fwd->next;
     }
 }
 
