@@ -40,6 +40,7 @@ def _test_auth_failure(nsproxy_runner, extra_args, is_udp=False):
         "Server bind on" if is_udp else "Server listened on"
     )
     pingpong_port = 37777
+    pingpong_failed_exitcode = 1
 
     with managed_proc(subprocess.Popen(
         [
@@ -72,6 +73,10 @@ def _test_auth_failure(nsproxy_runner, extra_args, is_udp=False):
         # Client should fail with auth error
         assert "Please check your username and password." in cl_err, (
             f"Expected auth error message not found. stderr: {cl_err}"
+        )
+        assert client.returncode == pingpong_failed_exitcode, (
+            f"Expected client exited with status {pingpong_failed_exitcode}, "
+            f"got {client.returncode}.  stderr: {cl_err}"
         )
 
 
