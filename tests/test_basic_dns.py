@@ -29,6 +29,7 @@ Usage:
 import subprocess
 import time
 from .conftest import (
+    LOCAL_IP,
     HTTP_NOAUTH_PORT,
     SOCKS_NOAUTH_PORT,
     managed_proc,
@@ -51,7 +52,7 @@ def _run_dns_redir_test(nsproxy_runner, extra_args, protocol="udp"):
         # Run the dig client through nsproxy
         with managed_proc(nsproxy_runner(extra_args + [
             "-d",
-            f"{protocol}://127.0.0.1:{COREDNS_PORT}",
+            f"{protocol}://{LOCAL_IP}:{COREDNS_PORT}",
             "dig",
             "+short",
             "+time=1",
@@ -65,7 +66,7 @@ def _run_dns_redir_test(nsproxy_runner, extra_args, protocol="udp"):
         cl_err = cl_stderr.decode(errors="replace")
 
         # Assertions
-        assert "120.0.0.1" in cl_out, (
+        assert "127.99.99.99" in cl_out, (
             f"DNS query did not return expected IP. stdout: {cl_out}, stderr: {cl_err}"
         )
         assert client.returncode == 0, (
