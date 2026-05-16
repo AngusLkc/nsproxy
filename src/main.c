@@ -182,7 +182,7 @@ static int bringup_tun(void)
     }
 
     /* create tun0 */
-    if ((tunfd = open("/dev/net/tun", O_RDWR | O_CLOEXEC)) == -1) {
+    if ((tunfd = open("/dev/net/tun", O_RDWR | O_NONBLOCK | O_CLOEXEC)) == -1) {
         if (errno == ENOENT) {
             fprintf(stderr,
                     "nsproxy: open \"/dev/net/tun\" failed.\n"

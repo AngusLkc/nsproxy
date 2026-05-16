@@ -78,27 +78,37 @@ static int is_gateway(const struct netif *netif, const ip_addr_t *addr)
 static void tun_input(struct netif *tunif)
 {
     struct corectx *core = tunif->state;
-    ssize_t nread;
-    struct pbuf *p;
+    struct pbuf *p = NULL;
 
-    if ((p = pbuf_alloc(PBUF_RAW, NSPROXY_MTU, PBUF_RAM)) == NULL)
-        oom();
+    for (;;) {
+        ssize_t nread;
 
-    if ((nread = read(core->tunfd, p->payload, p->len)) == -1) {
-        logwarn("tun_input: read tunfd failed: %s", strerror(errno));
-        pbuf_free(p);
-        return;
+        if ((p = pbuf_alloc(PBUF_RAW, NSPROXY_MTU, PBUF_RAM)) == NULL)
+            oom();
+
+        nread = read(core->tunfd, p->payload, p->len);
+        if (nread == -1 && errno == EAGAIN) {
+            break;
+        } else if (nread == -1) {
+            logwarn("tun_input: read tunfd failed: %s", strerror(errno));
+            break;
+        }
+
+        loginfo("tun_input: read %zd bytes from TUN", nread);
+
+        /* shrink, set p->tot_len = nread */
+        pbuf_realloc(p, nread);
+
+        if (tunif->input(p, tunif) != ERR_OK) {
+            LWIP_DEBUGF(NETIF_DEBUG, ("tun_input: netif input error\n"));
+            break;
+        }
+
+        p = NULL; /* ownship was moved to tunif */
     }
 
-    /* shrink, set p->tot_len = nread */
-    pbuf_realloc(p, nread);
-
-    loginfo("tun_input: read %zd bytes from TUN", nread);
-
-    if (tunif->input(p, tunif) != ERR_OK) {
-        LWIP_DEBUGF(NETIF_DEBUG, ("tun_input: netif input error\n"));
+    if (p)
         pbuf_free(p);
-    }
 }
 
 static err_t tun_output(struct netif *tunif, struct pbuf *p)
@@ -123,11 +133,16 @@ static err_t tun_output(struct netif *tunif, struct pbuf *p)
         seg = seg->next;
     }
 
-    if ((nwrite = writev(core->tunfd, iov, clen)) == -1) {
+    nwrite = writev(core->tunfd, iov, clen);
+    if (nwrite == -1 && errno == EAGAIN) {
+        /* ERR_OK is same as frame dropped at link-layer. This is fine since TUN
+           almost never returns EAGAIN with default settings */
+        logwarn("tun_output: tunfd EAGAIN");
+        return ERR_OK;
+    } else if (nwrite == -1) {
         logwarn("tun_output: writev tunfd failed: %s", strerror(errno));
         return ERR_IF;
-    }
-    if (nwrite != p->tot_len) {
+    } else if (nwrite != p->tot_len) {
         /* should not happen, we have checked p->tot_len <= MTU */
         LWIP_DEBUGF(NETIF_DEBUG, ("tun_output: partial write\n"));
         return ERR_IF;
