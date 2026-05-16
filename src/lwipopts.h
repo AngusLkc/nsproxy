@@ -1,5 +1,24 @@
 #pragma once
 
+#define NSPROXY_MODIFIED 1
+
+/* MTU for Linux TUN and lwIP netif */
+#define NSPROXY_MTU        36000
+
+/* IPv4 CGNAT 100.64.0.0-100.127.255.255 */
+#define NSPROXY_GATEWAY_IP "100.64.1.1"
+#define NSPROXY_LOCAL_IP   "100.64.1.2"
+#define NSPROXY_NETMASK    "255.255.255.252"
+
+/* IPv6 ULA */
+#define NSPROXY_GATEWAY_IPV6 "fd00:100:64:1::1"
+#define NSPROXY_LOCAL_IPV6   "fd00:100:64:1::2"
+#define NSPROXY_PREFIXLEN    64
+
+#define NSPROXY_TCP_IDLE_TIMEOUT 7206
+#define NSPROXY_UDP_IDLE_TIMEOUT 302
+#define NSPROXY_DNS_IDLE_TIMEOUT 16
+
 /* Use lwIP low-level raw API only
    nsproxy hacked into lwIP internal, raw API is more predictable */
 #define NO_SYS       1
@@ -46,9 +65,9 @@
 #define IPV6_FRAG_COPYHEADER          1
 
 /* TCP tuning */
-#define TCP_MSS          64000
-#define TCP_WND          128000
-#define TCP_SND_BUF      128000
+#define TCP_MSS          (NSPROXY_MTU-60)
+#define TCP_WND          (TCP_MSS*2)
+#define TCP_SND_BUF      (TCP_MSS*2)
 #define TCP_SND_QUEUELEN 65535
 #define LWIP_WND_SCALE   1
 #define TCP_RCV_SCALE    1
@@ -89,19 +108,3 @@
                         x, __LINE__, __FILE_NAME__);                  \
         abort();                                                      \
     } while(0)
-
-#define NSPROXY_MODIFIED 1
-
-#define NSPROXY_LOCAL_IP   "172.23.255.255"
-#define NSPROXY_GATEWAY_IP "172.23.255.254"
-#define NSPROXY_NETMASK    "255.255.255.254"
-
-#define NSPROXY_LOCAL_IPV6   "fd00:172:23::255"
-#define NSPROXY_GATEWAY_IPV6 "fd00:172:23::254"
-#define NSPROXY_PREFIXLEN    64
-
-#define NSPROXY_MTU        65000
-
-#define NSPROXY_TCP_IDLE_TIMEOUT 7206
-#define NSPROXY_UDP_IDLE_TIMEOUT 302
-#define NSPROXY_DNS_IDLE_TIMEOUT 15
