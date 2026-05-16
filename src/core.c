@@ -150,6 +150,12 @@ static err_t tunip6_output(struct netif *netif, struct pbuf *p,
     return tun_output(netif, p);
 }
 
+static err_t tunlink_output(struct netif *tunif, struct pbuf *packet)
+{
+    logwarn("tunlink_output: netif->linkoutput called unexpectedly, drop.");
+    return ERR_IF;
+}
+
 static err_t tunif_init(struct netif *netif)
 {
     netif->name[0] = 't';
@@ -157,7 +163,7 @@ static err_t tunif_init(struct netif *netif)
 
     netif->output = tunip4_output;
     netif->output_ip6 = tunip6_output;
-    netif->linkoutput = tun_output;
+    netif->linkoutput = tunlink_output;
     netif->mtu = NSPROXY_MTU;
 
     return ERR_OK;

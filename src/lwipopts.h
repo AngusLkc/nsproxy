@@ -53,6 +53,7 @@
 /* netif */
 #define LWIP_SINGLE_NETIF   1
 #define LWIP_MULTICAST_PING 1
+#define PBUF_LINK_HLEN      0
 
 /* IPv4 */
 #define IP_FORWARD 0
