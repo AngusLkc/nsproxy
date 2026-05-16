@@ -684,8 +684,14 @@ int main(int argc, char *argv[])
                             "<user>:<password>\n");
             exit(EXIT_FAILURE);
         }
+
         ulen = sep - auth;
         plen = strlen(sep + 1);
+        if (ulen == 0 || (plen == 0 && !ishttp)) {
+            fprintf(stderr, "nsproxy: invalid auth argument, expected "
+                            "<user>:<password>\n");
+            exit(EXIT_FAILURE);
+        }
         if (ulen >= sizeof(conf.proxyuser) || plen >= sizeof(conf.proxypass)) {
             fprintf(stderr, "nsproxy: username or password too long\n");
             exit(EXIT_FAILURE);
@@ -740,8 +746,9 @@ int main(int argc, char *argv[])
         const char *sv = dns + strlen("tcp://"); /* same size with "udp://" */
         const char *sep, *ipbegin, *ipend;
         size_t iplen;
-        int port;
+        uint16_t port;
 
+        /* parse ipbegin / ipend */
         if (sv[0] == '[') {
             /* [ipv6] or [ipv6_addr]:port */
             ipbegin = sv + 1;
@@ -749,7 +756,11 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "nsproxy: Bad DNS server address\n");
                 exit(EXIT_FAILURE);
             }
-            sep = strchr(ipend, ':');
+            if (*(ipend + 1) != '\0' || *(ipend + 1) != ':') {
+                fprintf(stderr, "nsproxy: Bad DNS server address\n");
+                exit(EXIT_FAILURE);
+            }
+            sep = strchr(ipend + 1, ':');
         } else {
             /* ipv4 / ipv4:port */
             ipbegin = sv;
@@ -761,16 +772,24 @@ int main(int argc, char *argv[])
             ipend = sep ? sep : (sv + strlen(ipbegin));
         }
 
+        /* check iplen */
         iplen = ipend - ipbegin;
         if (iplen == 0 || iplen > SERVNAME_MAXLEN) {
             fprintf(stderr, "nsproxy: Bad DNS server address\n");
             exit(EXIT_FAILURE);
         }
 
-        port = sep ? atoi(sep + 1) : 53;
-        if (port <= 0 || port > 65535) {
-            fprintf(stderr, "nsproxy: Bad DNS server port\n");
-            exit(EXIT_FAILURE);
+        /* parse port */
+        if (sep) {
+            char *endptr;
+            long val = strtol(sep + 1, &endptr, 10);
+            if (val <= 0 || val > 65535 || *endptr != '\0') {
+                fprintf(stderr, "nsproxy: Bad DNS server port\n");
+                exit(EXIT_FAILURE);
+            }
+            port = val;
+        } else {
+            port = 53;
         }
 
         snprintf(conf.dnssrv, sizeof(conf.dnssrv), "%.*s", (int)iplen, ipbegin);
