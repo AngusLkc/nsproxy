@@ -45,5 +45,12 @@
       "protocol": "freedom",
       "settings": {}
     }
-  ]
+  ],
+  "policy": {
+    "levels": {
+      "0": {
+        "bufferSize": 0
+      }
+    }
+  }
 }
