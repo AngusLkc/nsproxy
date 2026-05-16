@@ -234,7 +234,7 @@ static err_t udp_proxy_input(struct udp_forward *fwd)
     struct proxy *proxy = fwd->proxy;
     struct udp_pcb *pcb = fwd->pcb;
     char *buffer;
-    struct pbuf *p;
+    struct pbuf *p = NULL;
     err_t ret;
 
     /* reset gc ttl */
@@ -243,11 +243,15 @@ static err_t udp_proxy_input(struct udp_forward *fwd)
 
     if ((buffer = malloc(UDP_PACKET_MAXLEN)) == NULL)
         oom();
-    if ((p = pbuf_alloc_reference(buffer, UDP_PACKET_MAXLEN, PBUF_REF)) == NULL)
-        oom();
 
     for (;;) {
-        ssize_t nread = proxy_recv(proxy, buffer, UDP_PACKET_MAXLEN);
+        ssize_t nread;
+
+        p = pbuf_alloc_reference(buffer, UDP_PACKET_MAXLEN, PBUF_REF);
+        if (p == NULL)
+            oom();
+
+        nread = proxy_recv(proxy, p->payload, p->len);
         if (nread == -EAGAIN) {
             proxy_evctl(proxy, EPOLLIN, EVSET);
             ret = ERR_OK;
@@ -258,20 +262,28 @@ static err_t udp_proxy_input(struct udp_forward *fwd)
             udp_forward_destroy(fwd);
             ret = ERR_ABRT;
             break;
-        } else {
-            pbuf_realloc(p, nread); /* set p->tot_len = nread */
-            if (udp_send(pcb, p) != ERR_OK) {
-                logwarn("udp_proxy_input: udp_send() failed, destroy fwd");
-                udp_forward_destroy(fwd);
-                ret = ERR_ABRT;
-                break;
-            }
-            /* continue */
         }
+
+        pbuf_realloc(p, nread); /* set p->tot_len = nread */
+        if (udp_send(pcb, p) != ERR_OK) {
+            logwarn("udp_proxy_input: udp_send() failed, destroy fwd");
+            udp_forward_destroy(fwd);
+            ret = ERR_ABRT;
+            break;
+        }
+
+        /* tun_output() is synchronous, reuse pbuf is possile, but we follow
+           lwIP API semantics: call pbuf_free() immediately after udp_send().
+           Recycle buffer is safe, PBUF_REF is volatile and lwIP will copy data
+           if they need. */
+        pbuf_free(p);
+        p = NULL;
     }
 
-    pbuf_free(p);
+    if (p)
+        pbuf_free(p);
     free(buffer);
+
     return ret;
 }
 
