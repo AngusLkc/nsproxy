@@ -217,7 +217,7 @@ static struct udp_forward *udp_forward_create(struct corectx *core)
     fwd->core = core;
     fwd->gc = NSPROXY_UDP_IDLE_TIMEOUT;
 
-    /* Add to head of list */
+    /* add to head */
     fwd->next = core->udplst;
     if (core->udplst != NULL) {
         core->udplst->prev = fwd;
@@ -232,7 +232,7 @@ static void udp_forward_destroy(struct udp_forward *fwd)
 {
     struct corectx *core = fwd->core;
 
-    /* remove from list */
+    /* remove from linked-list */
     if (fwd->prev != NULL) {
         fwd->prev->next = fwd->next;
     } else {
@@ -246,13 +246,11 @@ static void udp_forward_destroy(struct udp_forward *fwd)
     while (fwd->nrcvq --> 0) /* out of tricks, it's time to bite a lighter */
         pbuf_free(fwd->rcvq[fwd->nrcvq]);
 
-    /* free pcb */
     if (fwd->pcb) {
         udp_recv(fwd->pcb, NULL, NULL);
         udp_remove(fwd->pcb);
     }
 
-    /* free proxy */
     if (fwd->proxy)
         proxy_put(fwd->proxy);
 
@@ -269,7 +267,6 @@ static err_t udp_proxy_input(struct udp_forward *fwd)
     struct pbuf *p = NULL;
     err_t ret;
 
-    /* reset gc ttl */
     fwd->gc = fwd->pcb->local_port == 53 ? NSPROXY_DNS_IDLE_TIMEOUT
                                          : NSPROXY_UDP_IDLE_TIMEOUT;
 
@@ -309,8 +306,8 @@ static err_t udp_proxy_input(struct udp_forward *fwd)
 
         /* tun_output() is synchronous, reuse pbuf is possile, but we follow
            lwIP API semantics: call pbuf_free() immediately after udp_send().
-           Recycle buffer is safe, PBUF_REF is volatile and lwIP will copy data
-           if they need. */
+           But recycle buffer is safe, PBUF_REF is volatile and lwIP will copy
+           data if they need. */
         pbuf_free(p);
         p = NULL;
     }
@@ -331,7 +328,6 @@ static err_t udp_proxy_output(struct udp_forward *fwd)
     struct pbuf *p;
     char *heapbuff = NULL;
 
-    /* reset gc ttl */
     fwd->gc = fwd->pcb->local_port == 53 ? NSPROXY_DNS_IDLE_TIMEOUT
                                          : NSPROXY_UDP_IDLE_TIMEOUT;
 
@@ -366,12 +362,11 @@ static err_t udp_proxy_output(struct udp_forward *fwd)
            it will leave a half-free'ed rcvq. */
     }
 
-    /* no fatal error, free rcvq */
     for (i = 0; i < fwd->nrcvq; i++)
         pbuf_free(fwd->rcvq[i]);
     fwd->nrcvq = 0;
 
-    /* rcvq is empty, stop polling EPOLLOUT */
+    /* rcvq drained */
     proxy_evctl(proxy, EPOLLOUT, EVCLR);
 
     free(heapbuff);
@@ -391,8 +386,7 @@ static void udp_lwip_received(void *arg, struct udp_pcb *pcb, struct pbuf *p,
 {
     struct udp_forward *fwd = arg;
 
-    if (!p) {
-        /* should not happen */
+    if (!p) { /* should not happen */
         udp_forward_destroy(fwd);
         return;
     }
@@ -465,6 +459,7 @@ err_t core_udp_new(struct udp_pcb *pcb)
 
     ipaddr_ntoa_r(&pcb->local_ip, ip, sizeof(ip));
     if (conf->proxytype == PROXY_SOCKS5 && !core->assocready) {
+        /* leave a pending fwd */
         fwd->proxy = NULL;
         return ERR_OK;
     } else if (conf->proxytype == PROXY_SOCKS5) {
@@ -490,52 +485,42 @@ static void udp_assoc_io_event(void *userp, unsigned int events)
     struct corectx *core = userp;
     struct udp_forward *fwd;
 
-    /* udpassoc failed */
+    /* unexpected events on udpassoc connection, clean up and set countdown */
     if (events & (EPOLLIN | EPOLLERR | EPOLLHUP)) {
-        int cdexp;
+        int cdexp = core->assocretries <= 5 ? core->assocretries : 5;
 
-        /* remove this connection */
         proxy_put(core->udpassoc);
         core->udpassoc = NULL;
         core->assocready = 0;
+        core->assoccd = 1 << cdexp; /* exponent backoff */
 
         /* also remove all UDP_FORWARD connections */
         while (core->udplst)
             udp_forward_destroy(core->udplst);
 
-        /* set countdown, timer will re-associate after it expires */
-        cdexp = core->assocretries <= 5 ? core->assocretries : 5;
-        core->assoccd = 1 << cdexp; /* exponent backoff */
-
         return;
     }
 
-    /* udpassoc succeed */
+    /* interest on EPOLLOUT only once, so now assoc just succeed */
+    proxy_evctl(core->udpassoc, EPOLLOUT, EVCLR);
     core->assocready = 1;
     core->assocretries = 0;
 
-    /* udpassoc no need to write data, stop polling EPOLLOUT */
-    proxy_evctl(core->udpassoc, EPOLLOUT, EVCLR);
-
-    /* create struct proxy for udp_forward */
+    /* connect to proxy for pending fwd */
     for (fwd = core->udplst; fwd;) {
         struct udp_pcb *pcb = fwd->pcb;
         char ip[IPADDR_STRLEN_MAX + 1];
 
-        /* it's a connected proxy_direct / proxy_tcpdns, skip */
-        if (fwd->proxy) {
+        if (fwd->proxy) { /* not pending */
             fwd = fwd->next;
             continue;
         }
 
-        /* create proxy_socks */
         ipaddr_ntoa_r(&pcb->local_ip, ip, sizeof(ip));
         fwd->proxy = socks_udp_create(core->loop, &udp_proxy_io_event, fwd, ip,
                                       pcb->local_port, core->udpassoc);
-
-        /* proxy failed */
         if (fwd->proxy == NULL) {
-            struct udp_forward *next = fwd->next; /* save next for linked-list */
+            struct udp_forward *next = fwd->next; /* save next in linked-list */
             udp_forward_destroy(fwd);
             fwd = next;
             continue;
@@ -555,7 +540,7 @@ static struct tcp_forward *tcp_forward_create(struct corectx *core)
     fwd->core = core;
     fwd->gc = NSPROXY_TCP_IDLE_TIMEOUT;
 
-    /* Add to head of list */
+    /* add to head */
     fwd->next = core->tcplst;
     if (core->tcplst != NULL) {
         core->tcplst->prev = fwd;
@@ -575,18 +560,16 @@ static void tcp_forward_destroy(struct tcp_forward *fwd, int force)
     if (fwd->sndq != NULL || fwd->rcvq != NULL)
         rst = 1;
 
-    /* remove from list */
+    /* remove from linked-list */
     if (fwd->prev != NULL)
         fwd->prev->next = fwd->next;
     else
         core->tcplst = fwd->next;
-
     if (fwd->next != NULL)
         fwd->next->prev = fwd->prev;
 
-    /* free pcb */
     if (fwd->pcb) {
-        /* avoid tcp_close() calls callback functions again */
+        /* avoid tcp_close() calls callbacks again on destroy path */
         tcp_arg(fwd->pcb, NULL);
         tcp_sent(fwd->pcb, NULL);
         tcp_recv(fwd->pcb, NULL);
@@ -595,18 +578,16 @@ static void tcp_forward_destroy(struct tcp_forward *fwd, int force)
             tcp_abort(fwd->pcb);
         } else {
             if (tcp_close(fwd->pcb) != ERR_OK)
-                tcp_abort(fwd->pcb); /* gracefully closing falied, force close */
+                tcp_abort(fwd->pcb); /* tcp_close() may failed, abort it. */
         }
     }
 
-    /* free proxy */
     if (fwd->proxy) {
         if (force || rst)
             proxy_shutdown(fwd->proxy, SHUT_RDWR, 1);
         proxy_put(fwd->proxy);
     }
 
-    /* free queues */
     if (fwd->sndq)
         pbuf_free(fwd->sndq);
     if (fwd->rcvq)
@@ -628,7 +609,6 @@ static err_t tcp_proxy_input(struct tcp_forward *fwd)
     struct proxy *proxy = fwd->proxy;
     struct pbuf *p;
 
-    /* reset gc ttl */
     fwd->gc = NSPROXY_TCP_IDLE_TIMEOUT;
 
     while (!fwd->proxyeof && tcp_sndbuf(pcb) > tcp_mss(pcb)
@@ -653,15 +633,13 @@ static err_t tcp_proxy_input(struct tcp_forward *fwd)
             pbuf_free(p);
             break;
         } else {
-            /* set actual length for pbuf */
-            pbuf_realloc(p, nread);
+            pbuf_realloc(p, nread); /* set to actual length */
 
-            /* send to application and enqueue to fwd->sndq */
+            /* send and leave data stay in sndq, free after ACK */
             if (tcp_write(pcb, p->payload, nread, 0) != ERR_OK) {
                 logwarn("tcp_proxy_input: tcp_write() failed");
                 goto failed_after_pbuf_alloc;
             }
-            /* p is moved into fwd->sndq, don't free */
             if (fwd->sndq == NULL)
                 fwd->sndq = p;
             else
@@ -711,7 +689,6 @@ static err_t tcp_proxy_output(struct tcp_forward *fwd)
     struct proxy *proxy = fwd->proxy;
     ssize_t nsent;
 
-    /* reset gc ttl */
     fwd->gc = NSPROXY_TCP_IDLE_TIMEOUT;
 
     while (fwd->rcvq) {
@@ -730,7 +707,7 @@ static err_t tcp_proxy_output(struct tcp_forward *fwd)
         }
     }
 
-    /* rcvq is now empty, stop polling EPOLLOUT */
+    /* rcvq drained */
     proxy_evctl(proxy, EPOLLOUT, EVCLR);
 
     /* received EOF from lwip, and all datas has been sent to proxy,
@@ -830,6 +807,7 @@ static void tcp_proxy_io_event(void *userp, unsigned int events)
         err = tcp_proxy_output(fwd);
 
     if (!err && !fwd->pcb->proxyestab) {
+        /* SYN+ACK is delayed until proxy established, send it now */
         fwd->pcb->proxyestab = 1;
         tcp_output(fwd->pcb);
     }
@@ -883,6 +861,7 @@ end:
     }
 }
 
+/* call every 1s */
 static void core_gc_tmr(struct corectx *core)
 {
     struct tcp_forward *tcur = core->tcplst;
@@ -903,6 +882,7 @@ static void core_gc_tmr(struct corectx *core)
     }
 }
 
+/* call every 1s */
 static void core_reassoc_tmr(struct corectx *core)
 {
     struct loopctx *loop = core->loop;
@@ -923,6 +903,7 @@ static void core_reassoc_tmr(struct corectx *core)
     }
 }
 
+/* call every 250ms */
 static void core_timerfd_epcb_events(struct epcb_ops *epcb, unsigned int events)
 {
     struct corectx *core = container_of(epcb, struct corectx, timerepcb);
