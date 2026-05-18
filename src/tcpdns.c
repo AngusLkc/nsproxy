@@ -192,8 +192,6 @@ static ssize_t tcpdns_send(struct proxy *proxy, const char *data, size_t size)
     struct tcpdns_worker *worker;
     uint16_t sizebe;
 
-    loglv2("--- tcpdns %zd bytes query", size);
-
     if (size + 2 > membersizeof(struct tcpdns_worker, buffer))
         return -E2BIG; /* query too large */
 
@@ -205,6 +203,8 @@ static ssize_t tcpdns_send(struct proxy *proxy, const char *data, size_t size)
     memcpy(worker->buffer, &sizebe, 2);
     memcpy(worker->buffer + 2, data, size);
     worker->nbuffer = size + 2;
+
+    loglv2("--- tcpdns %zu bytes query", size);
 
     if (conf->proxytype == PROXY_SOCKS5)
         worker->proxy =
@@ -270,7 +270,7 @@ static ssize_t tcpdns_recv(struct proxy *proxy, char *data, size_t size)
     szcopy = szrepl <= size ? szrepl : size;
     memcpy(data, worker->buffer + 2, szcopy);
 
-    loglv2("+++ tcpdns %zd bytes answer", szcopy);
+    loglv2("+++ tcpdns %zu bytes answer", szcopy);
 
     tcpdns_worker_destroy(worker);
     return szcopy;
