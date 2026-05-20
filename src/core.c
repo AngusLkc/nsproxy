@@ -96,8 +96,9 @@ static void tun_input(struct netif *tunif)
 {
     struct corectx *core = tunif->state;
     struct pbuf *p = NULL;
+    size_t budget = 250; /* avoid starve, defaults to half of TUN queue size */
 
-    for (;;) {
+    for (; budget > 0; budget--) {
         ssize_t nread;
 
         if ((p = pbuf_alloc(PBUF_RAW, NSPROXY_MTU, PBUF_RAM)) == NULL)
