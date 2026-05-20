@@ -798,7 +798,7 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "nsproxy: Bad DNS server address\n");
                 exit(EXIT_FAILURE);
             }
-            if (*(ipend + 1) != '\0' || *(ipend + 1) != ':') {
+            if (*(ipend + 1) != '\0' && *(ipend + 1) != ':') {
                 fprintf(stderr, "nsproxy: Bad DNS server address\n");
                 exit(EXIT_FAILURE);
             }
