@@ -275,6 +275,50 @@ static ssize_t socks5_addr_get(struct socks5addr *addr, const char *buffer,
     return cur - buffer;
 }
 
+/* Resolve address in socks5addr to IP string presentation.
+   Most servers fills IP in BND.ADDR, but we allow domain per RFC. Resolution
+   briefly blocks the event loop, but usually only once and not harmful.
+   Return 0 if OK, -1 if failed. */
+static int socks5_set_reladdr(struct reladdr *dst, struct socks5addr *src)
+{
+    char port[8];
+    struct addrinfo hints = { .ai_family = AF_UNSPEC };
+    struct addrinfo *res = NULL;
+
+    static_assert(sizeof(dst->addr) >= sizeof(current_nspconf()->proxysrv)
+                  && sizeof(dst->addr) >= INET6_ADDRSTRLEN, "???");
+
+    snprintf(port, sizeof(port), "%u", (unsigned)src->port);
+    if (getaddrinfo(src->addr, port, &hints, &res) != 0)
+        goto failed_after_getaddrinfo;
+
+    if (res->ai_family == AF_INET) {
+        struct sockaddr_in *sa4 = (struct sockaddr_in *)res->ai_addr;
+        inet_ntop(res->ai_family, &sa4->sin_addr, dst->addr, sizeof(dst->addr));
+        dst->port = ntohs(sa4->sin_port);
+    } else if (res->ai_family == AF_INET6) {
+        struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)res->ai_addr;
+        inet_ntop(res->ai_family, &sa6->sin6_addr, dst->addr, sizeof(dst->addr));
+        dst->port = ntohs(sa6->sin6_port);
+    } else {
+        goto failed_after_getaddrinfo;
+    }
+
+    /* reladdr.addr is all zero, means relay address is same as proxy address */
+    if (strcmp(dst->addr, "0.0.0.0") == 0 || strcmp(dst->addr, "::") == 0) {
+        strcpy(dst->addr, current_nspconf()->proxysrv); /* static_assert checked */
+        dst->port = src->port;
+    }
+
+    freeaddrinfo(res);
+    return 0;
+
+failed_after_getaddrinfo:
+    if (res)
+        freeaddrinfo(res);
+    return -1;
+}
+
 static void socks_handshake_perror(struct proxy_socks *self, int err)
 {
     if (err > 0)
@@ -536,12 +580,15 @@ static void socks_handshake_input(struct proxy_socks *self)
         }
 
         if (self->type == UDP_ASSOCIATE) {
-            loglv1("UDP relay address: %s:%u", ad.addr, (unsigned)ad.port);
             if ((self->relay = calloc(1, sizeof(struct reladdr))) == NULL)
                 oom();
-            static_assert(sizeof(self->relay->addr) >= sizeof(ad.addr), "???");
-            strcpy(self->relay->addr, ad.addr);
-            self->relay->port = ad.port;
+            if (socks5_set_reladdr(self->relay, &ad) == -1) {
+                free(self->relay);
+                self->relay = NULL;
+                goto failed_handshake;
+            }
+            loglv1("SOCKS5 UDP relay address: %s:%u", self->relay->addr,
+                   (unsigned)self->relay->port);
         }
 
         self->phase = PHASE_FORWARDING;
