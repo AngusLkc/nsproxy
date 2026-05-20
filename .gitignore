@@ -1,4 +1,7 @@
+/nsproxy-*.tar.xz
+/build-*/
 /build/
+
 /.*/
 
 __pycache__/
