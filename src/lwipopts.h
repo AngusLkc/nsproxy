@@ -84,8 +84,8 @@
 
 /* TCP tuning */
 #define TCP_MSS          (NSPROXY_MTU-60)
-#define TCP_WND          (TCP_MSS*2)
-#define TCP_SND_BUF      (TCP_MSS*2)
+#define TCP_WND          (TCP_MSS*3)
+#define TCP_SND_BUF      (TCP_MSS*3)
 #define TCP_SND_QUEUELEN 65535
 #define LWIP_WND_SCALE   1
 #define TCP_RCV_SCALE    1
