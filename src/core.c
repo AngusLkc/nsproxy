@@ -431,10 +431,15 @@ err_t core_udp_new(struct udp_pcb *pcb)
     struct nspconf *conf = current_nspconf();
     struct udp_forward *fwd;
     char local_ip[IPADDR_STRLEN_MAX + 1];
+    char remote_ip[IPADDR_STRLEN_MAX + 1];
     char *ip;
     uint16_t port;
 
     ipaddr_ntoa_r(&pcb->local_ip, local_ip, sizeof(local_ip));
+    ipaddr_ntoa_r(&pcb->remote_ip, remote_ip, sizeof(remote_ip));
+
+    loginfo("core_udp_new: new struct udp_pcb: %s:%u <- %s:%u", local_ip,
+            (unsigned)pcb->local_port, remote_ip, (unsigned)pcb->remote_port);
 
     ip = local_ip;
     port = pcb->local_port;
@@ -825,7 +830,19 @@ err_t core_tcp_new(struct tcp_pcb *pcb)
     struct corectx *core = ip_current_netif()->state;
     struct nspconf *conf = current_nspconf();
     struct tcp_forward *fwd;
-    char ip[IPADDR_STRLEN_MAX + 1];
+    char local_ip[IPADDR_STRLEN_MAX + 1];
+    char remote_ip[IPADDR_STRLEN_MAX + 1];
+    char *ip;
+    uint16_t port;
+
+    ipaddr_ntoa_r(&pcb->local_ip, local_ip, sizeof(local_ip));
+    ipaddr_ntoa_r(&pcb->remote_ip, remote_ip, sizeof(remote_ip));
+
+    loginfo("core_tcp_new: new struct tcp_pcb: %s:%u <- %s:%u", local_ip,
+            (unsigned)pcb->local_port, remote_ip, (unsigned)pcb->remote_port);
+
+    ip = local_ip;
+    port = pcb->local_port;
 
     fwd = tcp_forward_create(core);
     fwd->pcb = pcb;
@@ -836,24 +853,23 @@ err_t core_tcp_new(struct tcp_pcb *pcb)
     tcp_recv(pcb, &tcp_lwip_received);
     tcp_err(pcb, &tcp_lwip_err);
 
-    /* forward gateway to host namespace  */
     if (is_gateway(&core->tunif, &pcb->local_ip)) {
-        const char *localhost = IP_IS_V4(&pcb->local_ip) ? "127.0.0.1" : "::1";
-        fwd->proxy = direct_tcp_create(core->loop, &tcp_proxy_io_event, fwd,
-                                       localhost, pcb->local_port);
+        /* forward gateway to host namespace  */
+        ip = IP_IS_V4(&pcb->local_ip) ? "127.0.0.1" : "::1";
+        fwd->proxy =
+            direct_tcp_create(core->loop, &tcp_proxy_io_event, fwd, ip, port);
         goto end;
     }
 
-    ipaddr_ntoa_r(&pcb->local_ip, ip, sizeof(ip));
     if (conf->proxytype == PROXY_SOCKS5) {
-        fwd->proxy = socks_tcp_create(core->loop, &tcp_proxy_io_event, fwd, ip,
-                                      pcb->local_port);
+        fwd->proxy =
+            socks_tcp_create(core->loop, &tcp_proxy_io_event, fwd, ip, port);
     } else if (conf->proxytype == PROXY_HTTP) {
-        fwd->proxy = http_tcp_create(core->loop, &tcp_proxy_io_event, fwd, ip,
-                                     pcb->local_port);
+        fwd->proxy =
+            http_tcp_create(core->loop, &tcp_proxy_io_event, fwd, ip, port);
     } else {
-        fwd->proxy = direct_tcp_create(core->loop, &tcp_proxy_io_event, fwd, ip,
-                                       pcb->local_port);
+        fwd->proxy =
+            direct_tcp_create(core->loop, &tcp_proxy_io_event, fwd, ip, port);
     }
 
 end:
