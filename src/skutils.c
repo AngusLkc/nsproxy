@@ -24,21 +24,20 @@
 #include <sys/socket.h>
 #include "proxy.h"
 
-int skutils_connect(struct skinfo *info, const char *addr, uint16_t port,
-                    int type)
+int skutils_connect(struct skinfo *info, const char *ip, uint16_t port, int type)
 {
     struct addrinfo hints = { .ai_family = AF_UNSPEC };
     struct addrinfo *ai;
     char portstr[8];
     int sfd;
 
-    if (strlen(addr) >= SERVNAME_MAXLEN)
+    if (strlen(ip) >= SERVNAME_MAXLEN)
         return -EINVAL;
 
     snprintf(portstr, sizeof(portstr), "%u", (unsigned int)port);
 
-    /* resolve string addr to sockaddr, works well with both IPv4 / IPv6 */
-    if (getaddrinfo(addr, portstr, &hints, &ai) != 0)
+    /* resolve string ip to sockaddr, works well with both IPv4 / IPv6 */
+    if (getaddrinfo(ip, portstr, &hints, &ai) != 0)
         return -EADDRNOTAVAIL;
 
     sfd = socket(ai->ai_family, type | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);

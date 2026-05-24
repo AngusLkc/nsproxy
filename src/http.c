@@ -101,7 +101,7 @@ struct proxy_http {
     void *userp;
 
     /* target */
-    char *addr;
+    char *ip;
     uint16_t port;
 
     /* info */
@@ -193,7 +193,7 @@ static void http_handshake_input(struct proxy_http *self)
     }
 
     self->phase = PHASE_FORWARDING;
-    loglv2("... handshaked %s:%u/tcp", self->addr, (unsigned)self->port);
+    loglv2("... handshaked %s:%u/tcp", self->ip, (unsigned)self->port);
 
     /* good, handshake finish, listen and forward epoll event for user */
     skutils_evctl(self->loop, self->sfd, &self->events, &self->epcb,
@@ -219,7 +219,7 @@ static void http_handshake_output(struct proxy_http *self)
     if (!buff->size) {
         const char *lb, *rb;
 
-        if (strchr(self->addr, ':') != NULL) {
+        if (strchr(self->ip, ':') != NULL) {
             /* addr is IPv6 */
             lb = "[";
             rb = "]";
@@ -241,16 +241,16 @@ static void http_handshake_output(struct proxy_http *self)
                 "Host: %s%s%s:%u"                  "\r\n"
                 "Proxy-Authorization: Basic %s"    "\r\n"
                 "\r\n",
-                lb, self->addr, rb, (unsigned)self->port,
-                lb, self->addr, rb, (unsigned)self->port,
+                lb, self->ip, rb, (unsigned)self->port,
+                lb, self->ip, rb, (unsigned)self->port,
                 base64);
         } else {
             buff->size = snprintf(buff->data, buff->capacity,
                 "CONNECT %s%s%s:%u HTTP/1.1"    "\r\n"
                 "Host: %s%s%s:%u"               "\r\n"
                 "\r\n",
-                lb, self->addr, rb, (unsigned)self->port,
-                lb, self->addr, rb, (unsigned)self->port);
+                lb, self->ip, rb, (unsigned)self->port,
+                lb, self->ip, rb, (unsigned)self->port);
         }
     }
 
@@ -290,7 +290,7 @@ static void http_epcb_events(struct epcb_ops *epcb, unsigned int events)
         return;
     }
 
-    loginfo("http_epcb_events: handshaking with %s:%u/tcp [%s]", self->addr,
+    loginfo("http_epcb_events: handshaking with %s:%u/tcp [%s]", self->ip,
             (unsigned)self->port, phasestr[self->phase]);
 
     if (self->phase == PHASE_SEND_REQUEST) {
@@ -359,7 +359,7 @@ static void http_put(struct proxy *proxy)
     struct proxy_http *self = container_of(proxy, struct proxy_http, ops);
     if (--self->refcnt == 0) {
         skutils_close_unreg(&self->info, self->loop, &self->sfd);
-        free(self->addr);
+        free(self->ip);
         free(self->hsbuff);
         free(self);
     }
@@ -378,22 +378,22 @@ static const struct proxy_ops http_ops = {
 /* create a tcp connection
    this connection is proxied via http proxy server */
 struct proxy *http_tcp_create(struct loopctx *loop, userev_fn_t *userev,
-                              void *userp, const char *addr, uint16_t port)
+                              void *userp, const char *ip, uint16_t port)
 {
     struct proxy_http *self;
     struct nspconf *conf = current_nspconf();
 
     loginfo("http_tcp_create: creating new struct proxy_http for %s:%u/tcp",
-            addr, (unsigned)port);
+            ip, (unsigned)port);
 
-    if (strlen(addr) > SERVNAME_MAXLEN)
+    if (strlen(ip) > SERVNAME_MAXLEN)
         return NULL;
 
     if ((self = calloc(1, sizeof(struct proxy_http))) == NULL)
         oom();
     if ((self->hsbuff = buff_calloc(HTTP_HS_BUFF)) == NULL)
         oom();
-    if ((self->addr = strdup(addr)) == NULL)
+    if ((self->ip = strdup(ip)) == NULL)
         oom();
 
     /* init */
@@ -407,7 +407,7 @@ struct proxy *http_tcp_create(struct loopctx *loop, userev_fn_t *userev,
     self->userp = userp;
     self->port = port;
     self->info.proto = "tcp";
-    self->info.addr = self->addr;
+    self->info.addr = self->ip;
     self->info.port = self->port;
 
     /* perform connect */
@@ -415,7 +415,7 @@ struct proxy *http_tcp_create(struct loopctx *loop, userev_fn_t *userev,
                                 SOCK_STREAM);
     if (self->sfd < 0) {
         free(self->hsbuff);
-        free(self->addr);
+        free(self->ip);
         free(self);
         return NULL;
     }

@@ -48,8 +48,7 @@ struct skinfo {
 
 /* Create socket fd and connect to addr:port, with log prints
    return socked fd if succeed, otherwise -errno */
-int skutils_connect(struct skinfo *info, const char *addr, uint16_t port,
-                    int type);
+int skutils_connect(struct skinfo *info, const char *ip, uint16_t port, int type);
 
 /* events control
    'mask' and '*events' is same as epoll_ctl(2)

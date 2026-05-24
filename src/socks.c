@@ -97,7 +97,7 @@ struct proxy_socks {
     void *userp;
 
     /* target */
-    char *addr;
+    char *ip;
     uint16_t port;
 
     /* info */
@@ -370,7 +370,7 @@ static void socks_handshake_output(struct proxy_socks *self)
                                                 : SOCKS5_CMD_UDPASSOC;
             hdr.rsv = 0x0;
 
-            snprintf(ad.addr, sizeof(ad.addr), "%s", self->addr);
+            snprintf(ad.addr, sizeof(ad.addr), "%s", self->ip);
             ad.port = self->port;
 
             ret = socks5_hdr_put(buff->data + buff->size,
@@ -592,7 +592,7 @@ static void socks_handshake_input(struct proxy_socks *self)
         }
 
         self->phase = PHASE_FORWARDING;
-        loglv2("... handshaked %s:%u", self->addr, (unsigned)self->port);
+        loglv2("... handshaked %s:%u", self->ip, (unsigned)self->port);
     }
 
     /* clear input buffer */
@@ -631,7 +631,7 @@ static void socks_epcb_events(struct epcb_ops *epcb, unsigned int events)
     }
 
     loginfo("socks_epcb_events: handshaking with %s:%u/%s [%s]",
-            self->addr, (unsigned)self->port,
+            self->ip, (unsigned)self->port,
             self->type == TCP_FORWARD ? "tcp" : "udp", phasestr[self->phase]);
 
     if (self->phase == PHASE_SEND_METHOD || self->phase == PHASE_SEND_AUTH
@@ -681,7 +681,7 @@ static ssize_t socks_send(struct proxy *proxy, const char *data, size_t size)
         size_t offset = 0;
         ssize_t ret;
 
-        snprintf(addr.addr, sizeof(addr.addr), "%s", self->addr);
+        snprintf(addr.addr, sizeof(addr.addr), "%s", self->ip);
         addr.port = self->port;
 
         ret = socks5_hdr_put(buffer + offset, sizeof(buffer) - offset, &hdr);
@@ -766,7 +766,7 @@ static void socks_put(struct proxy *proxy)
     if (--self->refcnt == 0) {
         skutils_close_unreg(&self->info, self->loop, &self->sfd);
         free(self->relay);
-        free(self->addr);
+        free(self->ip);
         free(self->hsbuff);
         free(self);
     }
@@ -785,7 +785,7 @@ static const struct proxy_ops socks_ops = {
 /* used for internal only */
 static struct proxy_socks *
 socks_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
-                  int type, const char *addr, uint16_t port,
+                  int type, const char *ip, uint16_t port,
                   struct proxy_socks *as)
 {
     struct proxy_socks *self;
@@ -793,14 +793,14 @@ socks_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
     int socktype = (type == UDP_FORWARD) ? SOCK_DGRAM : SOCK_STREAM;
 
     loginfo("socks_create_impl: creating new struct proxy_socks for %s:%u/%s",
-            addr, (unsigned)port, (type == UDP_FORWARD) ? "udp" : "tcp");
+            ip, (unsigned)port, (type == UDP_FORWARD) ? "udp" : "tcp");
 
-    if (strlen(addr) > SERVNAME_MAXLEN)
+    if (strlen(ip) > SERVNAME_MAXLEN)
         return NULL;
 
     if ((self = calloc(1, sizeof(struct proxy_socks))) == NULL)
         oom();
-    if ((self->addr = strdup(addr)) == NULL)
+    if ((self->ip = strdup(ip)) == NULL)
         oom();
 
     /* init */
@@ -816,7 +816,7 @@ socks_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
     self->type = type;
     self->relay = NULL;
     self->info.proto = self->type == TCP_FORWARD ? "tcp" : "udp";
-    self->info.addr = self->addr;
+    self->info.addr = self->ip;
     self->info.port = self->port;
 
     if (type == UDP_FORWARD) {
@@ -825,7 +825,7 @@ socks_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
                                     as->relay->port, SOCK_DGRAM);
         if (self->sfd < 0) {
             free(self->hsbuff);
-            free(self->addr);
+            free(self->ip);
             free(self);
             return NULL;
         }
@@ -842,7 +842,7 @@ socks_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
                                     conf->proxyport, socktype);
         if (self->sfd < 0) {
             free(self->hsbuff);
-            free(self->addr);
+            free(self->ip);
             free(self);
             return NULL;
         }
@@ -859,10 +859,10 @@ socks_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
 /* create a tcp connection
    this connection is proxied via socks server */
 struct proxy *socks_tcp_create(struct loopctx *loop, userev_fn_t *userev,
-                               void *userp, const char *addr, uint16_t port)
+                               void *userp, const char *ip, uint16_t port)
 {
     struct proxy_socks *self =
-        socks_create_impl(loop, userev, userp, TCP_FORWARD, addr, port, NULL);
+        socks_create_impl(loop, userev, userp, TCP_FORWARD, ip, port, NULL);
     return self ? &self->ops : NULL;
 }
 
@@ -878,7 +878,7 @@ struct proxy *socks_assoc_create(struct loopctx *loop, userev_fn_t *userev,
 /* create a udp connection
    this connection is proxied via socks server */
 struct proxy *socks_udp_create(struct loopctx *loop, userev_fn_t *userev,
-                               void *userp, const char *addr, uint16_t port,
+                               void *userp, const char *ip, uint16_t port,
                                struct proxy *assoc)
 {
     struct proxy_socks *self;
@@ -887,7 +887,7 @@ struct proxy *socks_udp_create(struct loopctx *loop, userev_fn_t *userev,
     if (as->phase != PHASE_FORWARDING || as->relay == NULL)
         return NULL;
 
-    self = socks_create_impl(loop, userev, userp, UDP_FORWARD, addr, port, as);
+    self = socks_create_impl(loop, userev, userp, UDP_FORWARD, ip, port, as);
 
     return self ? &self->ops : NULL;
 }

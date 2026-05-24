@@ -21,4 +21,4 @@
 #include "loop.h"
 
 struct proxy *http_tcp_create(struct loopctx *loop, userev_fn_t *userev,
-                              void *userp, const char *addr, uint16_t port);
+                              void *userp, const char *ip, uint16_t port);
