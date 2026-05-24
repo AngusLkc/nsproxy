@@ -97,7 +97,7 @@ struct proxy_socks {
     void *userp;
 
     /* target */
-    char *ip;
+    char ip[IP_MAXLEN + 1];
     uint16_t port;
 
     /* info */
@@ -766,7 +766,6 @@ static void socks_put(struct proxy *proxy)
     if (--self->refcnt == 0) {
         skutils_close_unreg(&self->info, self->loop, &self->sfd);
         free(self->relay);
-        free(self->ip);
         free(self->hsbuff);
         free(self);
     }
@@ -795,12 +794,10 @@ socks_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
     loginfo("socks_create_impl: creating new struct proxy_socks for %s:%u/%s",
             ip, (unsigned)port, (type == UDP_FORWARD) ? "udp" : "tcp");
 
-    if (strlen(ip) > SERVNAME_MAXLEN)
+    if (strlen(ip) > IP_MAXLEN)
         return NULL;
 
     if ((self = calloc(1, sizeof(struct proxy_socks))) == NULL)
-        oom();
-    if ((self->ip = strdup(ip)) == NULL)
         oom();
 
     /* init */
@@ -812,6 +809,7 @@ socks_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
     self->refcnt = 1;
     self->userev = userev;
     self->userp = userp;
+    strcpy(self->ip, ip);
     self->port = port;
     self->type = type;
     self->relay = NULL;
@@ -825,7 +823,6 @@ socks_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
                                     as->relay->port, SOCK_DGRAM);
         if (self->sfd < 0) {
             free(self->hsbuff);
-            free(self->ip);
             free(self);
             return NULL;
         }
@@ -842,7 +839,6 @@ socks_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
                                     conf->proxyport, socktype);
         if (self->sfd < 0) {
             free(self->hsbuff);
-            free(self->ip);
             free(self);
             return NULL;
         }

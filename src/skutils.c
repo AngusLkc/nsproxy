@@ -31,7 +31,7 @@ int skutils_connect(struct skinfo *info, const char *ip, uint16_t port, int type
     char portstr[8];
     int sfd;
 
-    if (strlen(ip) >= SERVNAME_MAXLEN)
+    if (strlen(ip) > IP_MAXLEN)
         return -EINVAL;
 
     snprintf(portstr, sizeof(portstr), "%u", (unsigned int)port);

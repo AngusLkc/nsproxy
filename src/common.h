@@ -98,6 +98,9 @@ enum {
 /* rfc768(UDP) */
 #define UDP_PACKET_MAXLEN 65535
 
+/* 45 chars IPv6 addr + 15 chars IPv6 scope + 1 char '%' */
+#define IP_MAXLEN 61
+
 struct nspconf {
     char proxysrv[SERVNAME_MAXLEN + 1];
     uint16_t proxyport;

@@ -101,7 +101,7 @@ struct proxy_http {
     void *userp;
 
     /* target */
-    char *ip;
+    char ip[IP_MAXLEN + 1];
     uint16_t port;
 
     /* info */
@@ -359,7 +359,6 @@ static void http_put(struct proxy *proxy)
     struct proxy_http *self = container_of(proxy, struct proxy_http, ops);
     if (--self->refcnt == 0) {
         skutils_close_unreg(&self->info, self->loop, &self->sfd);
-        free(self->ip);
         free(self->hsbuff);
         free(self);
     }
@@ -386,14 +385,12 @@ struct proxy *http_tcp_create(struct loopctx *loop, userev_fn_t *userev,
     loginfo("http_tcp_create: creating new struct proxy_http for %s:%u/tcp",
             ip, (unsigned)port);
 
-    if (strlen(ip) > SERVNAME_MAXLEN)
+    if (strlen(ip) > IP_MAXLEN)
         return NULL;
 
     if ((self = calloc(1, sizeof(struct proxy_http))) == NULL)
         oom();
     if ((self->hsbuff = buff_calloc(HTTP_HS_BUFF)) == NULL)
-        oom();
-    if ((self->ip = strdup(ip)) == NULL)
         oom();
 
     /* init */
@@ -405,6 +402,7 @@ struct proxy *http_tcp_create(struct loopctx *loop, userev_fn_t *userev,
     self->refcnt = 1;
     self->userev = userev;
     self->userp = userp;
+    strcpy(self->ip, ip);
     self->port = port;
     self->info.proto = "tcp";
     self->info.addr = self->ip;
@@ -415,7 +413,6 @@ struct proxy *http_tcp_create(struct loopctx *loop, userev_fn_t *userev,
                                 SOCK_STREAM);
     if (self->sfd < 0) {
         free(self->hsbuff);
-        free(self->ip);
         free(self);
         return NULL;
     }

@@ -46,7 +46,7 @@ struct proxy_direct {
     void *userp;
 
     /* target */
-    char *ip;
+    char ip[IP_MAXLEN + 1];
     uint16_t port;
 
     /* info */
@@ -102,7 +102,6 @@ static void direct_put(struct proxy *proxy)
     struct proxy_direct *self = container_of(proxy, struct proxy_direct, ops);
     if (--self->refcnt == 0) {
         skutils_close_unreg(&self->info, self->loop, &self->sfd);
-        free(self->ip);
         free(self);
     }
 }
@@ -127,12 +126,10 @@ direct_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
     loginfo("direct_create_impl: creating new struct proxy_direct for %s:%u/%s",
             ip, (unsigned)port, (type == SOCK_DGRAM) ? "udp" : "tcp");
 
-    if (strlen(ip) > SERVNAME_MAXLEN)
+    if (strlen(ip) > IP_MAXLEN)
         return NULL;
 
     if ((self = calloc(1, sizeof(struct proxy_direct))) == NULL)
-        oom();
-    if ((self->ip = strdup(ip)) == NULL)
         oom();
 
     /* init */
@@ -145,6 +142,7 @@ direct_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
     self->refcnt = 1;
     self->userev = userev;
     self->userp = userp;
+    strcpy(self->ip, ip);
     self->port = port;
     self->info.proto = type == SOCK_STREAM ? "tcp" : "udp";
     self->info.addr = self->ip;
@@ -153,7 +151,6 @@ direct_create_impl(struct loopctx *loop, userev_fn_t *userev, void *userp,
     /* connect to target address directly */
     self->sfd = skutils_connect(&self->info, ip, port, type);
     if (self->sfd < 0) {
-        free(self->ip);
         free(self);
         return NULL;
     }
