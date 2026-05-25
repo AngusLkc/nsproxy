@@ -760,7 +760,6 @@ static err_t tcp_lwip_received(void *arg, struct tcp_pcb *pcb, struct pbuf *p,
                                err_t err)
 {
     struct tcp_forward *fwd = arg;
-    err_t ret;
 
     if (p) {
         /* here's some data need enqueue, rcvq should not full */
@@ -773,12 +772,10 @@ static err_t tcp_lwip_received(void *arg, struct tcp_pcb *pcb, struct pbuf *p,
         fwd->lwipeof = 1;
     }
 
-    ret = tcp_proxy_output(fwd);
+    if (!err)
+        tcp_ack_now(pcb); /* lwIP delayed ACK (up to 250ms) is slow for TUN */
 
-    if (ret == ERR_OK)
-        tcp_ack(pcb); /* ack immediately */
-
-    return ret;
+    return tcp_proxy_output(fwd);
 }
 
 /* called by lwip when TCP connection has been destroyed,
