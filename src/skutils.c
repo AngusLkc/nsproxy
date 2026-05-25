@@ -26,7 +26,7 @@
 
 int skutils_connect(struct skinfo *info, const char *ip, uint16_t port, int type)
 {
-    struct addrinfo hints = { .ai_family = AF_UNSPEC };
+    struct addrinfo hints = { .ai_family = AF_UNSPEC, .ai_flags = AI_NUMERICHOST };
     struct addrinfo *ai;
     char portstr[8];
     int sfd;
