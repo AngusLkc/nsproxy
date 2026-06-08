@@ -68,9 +68,7 @@ static void print_help(void)
            "  -v\n"
            "    Verbose mode. Use \"-vv\" or \"-vvv\" for more verbose.\n"
            "  -q\n"
-           "    Be quiet. Suppress output.\n"
-           "  -h\n"
-           "    Print this help message and exit.\n");
+           "    Be quiet. Suppress output.\n");
 }
 
 static ssize_t write_all(int fd, const void *data, size_t size)

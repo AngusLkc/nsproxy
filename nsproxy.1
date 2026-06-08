@@ -4,9 +4,9 @@ nsproxy \- unprivileged network namespace proxy
 .SH SYNOPSIS
 \fBnsproxy\fR [\fIOPTIONS...\fR] \fI<COMMAND>\fR [\fIARGS...\fR]
 .SH DESCRIPTION
-\fBnsproxy\fR is a Linux\-specific command\-line tool that forces applications to use a specific SOCKS5 or HTTP proxy.
+\fBnsproxy\fR is a Linux\-specific command\-line tool that forces apps to use a specific SOCKS5 or HTTP proxy.
 .PP
-Unlike \fBtsocks\fR or \fBproxychains\fR, which use \fBLD_PRELOAD\fR to intercept library calls, \fBnsproxy\fR uses Linux network namespaces. It creates a \fBTUN\fR device in a fresh network namespace and connects it to a user\-mode TCP/IP stack (lwIP). This allows it to work with statically linked applications and avoids many of the pitfalls of \fBLD_PRELOAD\fR\-based solutions.
+Unlike \fBtsocks\fR or \fBproxychains\fR, which use \fBLD_PRELOAD\fR to intercept library calls, \fBnsproxy\fR uses Linux network namespaces. It creates a \fBTUN\fR device in a fresh network namespace and connects it to a user\-mode TCP/IP stack (lwIP). This allows it to work with statically linked programs and avoids many of the pitfalls of \fBLD_PRELOAD\fR\-based solutions.
 .PP
 \fBnsproxy\fR does not require root privileges, as it leverages unprivileged user namespaces.
 .SH OPTIONS
@@ -15,7 +15,7 @@ Unlike \fBtsocks\fR or \fBproxychains\fR, which use \fBLD_PRELOAD\fR to intercep
 Use HTTP proxy instead of the default SOCKS5.
 .IP
 .B Note:
-UDP is not supported when using an HTTP proxy. UDP packets will be dropped, and an ICMP port unreachable message will be returned.
+UDP is not supported in the HTTP protocol. UDP packets will be dropped, and an ICMP port unreachable message will be returned.
 .TP
 .BI \-s " server"
 Proxy server address. Default is "127.0.0.1".
@@ -66,7 +66,7 @@ Specify a custom proxy server and port:
 .IP \(bu 2
 All UIDs and GIDs except the current user's are mapped to the overflow UID/GID. This means programs like \fBsudo\fR or \fBsu\fR will not work.
 .IP \(bu 2
-It's unable to establish a connection to the inside from the outside. This means programs listening a port like \fBapache\fR or \fBnginx\fR will not work.
+It's unable to establish a connection from the outside to the inside. This means programs listening on a port like \fBapache\fR or \fBnginx\fR will not work.
 .IP \(bu 2
 Connections to loopback addresses (\fB127.0.0.1\fR) refer to the inside of the namespace, not the host.
 .SH SEE ALSO

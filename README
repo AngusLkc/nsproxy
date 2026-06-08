@@ -1,23 +1,22 @@
 nsproxy
 ====================
 
-nsproxy (namespace proxy) is a Linux-specific command-line tool, makes
-applications force to use a specific SOCKS5 or HTTP proxy.
+nsproxy (namespace proxy) is a Linux-specific command-line tool that forces apps
+to use a specific SOCKS5 or HTTP proxy.
 
-Functionally similar to tsocks / proxychains-ng / graftcp, but using a
-totally different mechanism. It create a TUN device and launch applications in
-a fresh network_namespace, then connect the TUN device to a user-mode TCP/IP
-stack and redirect connections through proxy server outside the namespace.
-Benefiting from the namespace mechanism, it doesn't require any privilege, and
-will not affect other processes.
+Functionally similar to tsocks / proxychains-ng / graftcp, but using a different
+mechanism. It creates a new network_namespace with a TUN device and launches
+programs within it, and then connects the TUN device to a user-mode TCP/IP stack
+which redirects all connections to the proxy.
 
 It has the following features:
 
- - Support SOCKS5 / HTTP proxy protocols.
- - Support TCP / UDP protocols.
- - Built-in DNS redirection.
- - Works perfectly on static linked applications.
- - No privilege required.
+ - Supports SOCKS5 / HTTP proxy protocols.
+ - Supports TCP / UDP protocols.
+ - Supports DNS redirection.
+ - Works on statically linked programs or forked processes.
+ - No privileges or capabilities required.
+ - No system-wide side effects.
 
 
 BUILD
@@ -25,7 +24,7 @@ BUILD
 
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-cmake --install build  # optional, required root privilege
+sudo cmake --install build  # Optional
 
 
 USAGE
@@ -47,8 +46,7 @@ Examples:
 Options:
   -H
     Use HTTP proxy, not SOCKS5.
-    Note: UDP is **NOT** supported in HTTP proxy. UDP packets will drop and got
-          an ICMP port unreachable message.
+    Note: UDP is **NOT** supported in HTTP protocol. UDP packets will be dropped.
 
   -s <server>
     Proxy server address.
@@ -89,17 +87,11 @@ LIMITATIONS
 All UIDs and GIDs except the current user's are mapped to the overflow UID/GID.
 This means programs like sudo or su will not work.
 
-It's unable to establish a connection to the inside from the outside. This means
-programs listening a port like apache or nginx will not work.
+It's unable to establish a connection from the outside to the inside. This means
+programs listening on a port like apache or nginx will not work.
 
 Connections to loopback addresses (127.0.0.1) refer to the inside of the
 namespace, not the host.
-
-
-TODO
-----------
-
- - fullcone NAT
 
 
 CREDITS
